@@ -1340,7 +1340,7 @@ tabBuild:
 
         // get table names
 
-        strcpy(cmd,"show tables from mumps;");
+        strcpy(cmd,"show tables from @dbname@;");
 
         strcpy(cur_file,svPtr->sqloutput); // current output file name saved
         sprintf(svPtr->sqloutput,"%d.tables",getpid());
