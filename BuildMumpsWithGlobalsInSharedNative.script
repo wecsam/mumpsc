@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# June 3, 2017
+
+# This script builds a version of Mumps that uses the native B-tree based
+# global array database system in shared mode. This means that multiple instances
+# of Mumps can be running at the same time on the same database files by means 
+# of cooperative sharing of the database files. Each instance gets a 'time slice'
+# of the database files. This mode is slower than single user native database mode
+# but faster than native client-server.  the key parameter is:
+
+#	--with-standalone.
+
+# This paramter causes configure to build the shared dtatabase software by instantiating
+# the define symbol NATIVE_STANDALONE
+
+# Other options here are:
+#	--with-hardware-math which causes arithmetic to be done using hardware facilities.
+#		Remove this if you want extended precision.
+#	--with-cache=33 This is the number of global array cached database blocks. If you
+#		are using --with-standalone, this pramater should not be large.
+#	--with-block=2048 This is the size of the B-tree block. It must be in increments
+#		of 1024.
+#	--with-slice=500 This is the number of database operations permited in a time slice.
+#		The default is 500
+
+if [ "$OSTYPE" != "cygwin" ]; then
+
+	if [ `whoami` != "root" ]; then
+        	echo "**** you must be root to run this script"
+        	exit
+        	fi
+else
+	rm -f /usr/bin/mumps2c
+	rm -f /usr/bin/mumps
+fi
+
+echo "Building Mumps with Globals Resident in a Shared Native Btree"
+echo
+
+./configure prefix=/usr \
+--with-hardware-math \
+--with-cache=129 \
+--with-slice=125 \
+--with-standalone \
+--with-block=1024 
+
+if (($? > 0))
+	then
+	echo "Configure error"
+	exit
+	fi
+
+# number of concurrent make jobs
+
+JOBS=6
+
+make -j $JOBS && make install

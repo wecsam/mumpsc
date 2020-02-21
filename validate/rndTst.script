@@ -1,0 +1,13 @@
+#!/bin/bash
+
+gcc -o rndTst rndTst.c
+# for x in 7500 7600 7700 7800 7900 8000 9000
+for ((x=6000; x<12000; x=x+100))
+do
+
+echo
+echo "testing $x"
+rndTst $x < rand | sort -n > ccc
+rndTst.mps $x < rand | sort -n > xxx
+diff xxx ccc
+done

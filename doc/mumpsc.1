@@ -1,0 +1,72 @@
+.TH mumpsc 1 "January 8, 2002" "MUMPSC"
+
+.SH NAME
+mumpsc \- Mumps compiler
+
+.SH SYNOPSIS
+.B mumpsc 
+[\-n|\-\-native|\-b|\-\-berkeley|\-s[T|U|S]|\-\-server=[udp|tcp|ssl]] 
+[\-p|\-\-postgres] [\-g|\-\-debug] [\-d<IP>|\-\-default_ip=<IP>]
+.RI filename
+.br
+
+.SH DESCRIPTION
+This manual page explains the
+.B mumpsc
+program. This program translates a source file written in the Mumps language
+into a C source file, which is then compiled into an executable.
+.PP
+\fBmumpsc\fP is actually a shell script and wrapper to \fBmumps2c\fP, the Mumps
+to C translator. It also calls cc if a source file is successfully generated.
+.PP
+"filename" is of the form "progname.mps" followed by zero or more
+"prog.o" file names.  The ".mps" and ".o" extensions are required.
+
+.SH OPTIONS
+.TP
+.B \-n [ \-\-native ]
+Use the native database implementation for global array handling.
+.TP
+.B \-b [ \-\-berkeley ]
+Use Berkeley DB to manage global array storage. (This is the default)
+.TP
+.B \-s<TYPE> [ \-\-server=<TYPE> ]
+Use client-server mode for global array handling.  This mode has three different sub-modes, 
+in the form of TCP, UDP, or SSL clients.  Make sure you compile the client correctly for the
+server which is running.
+.TP
+.B \-p [ \-\-postgres ]
+Compile with the Postgres library, needed to provide function calls emitted
+when compiling "SQL" commands in the Mumps source.
+.TP
+.B \-g [ \-\-debug ]
+Compile the generated C code with debugging symbols, to allow for the use of a
+debugger on the resulting binaries.
+.TP
+.B \-d<IP> [ \-\-default_ip=<IP> ] 
+This option sets the default IP for the client to connect to.  By default it is set to 
+127.0.0.1, but any executable compiled as a client takes an optional argument of an IP 
+or host to connect to.
+
+.SH BUGS
+Please e-mail bug reports to the authors. You should include a Mumps source file
+that can reproduce the error, and the version number (found in the name of the
+source tarball the  compiler is installed from).
+
+.SH AUTHOR
+Most of the source code for this Mumps compiler was written by Kevin O'Kane,
+<okane@cs.uni.edu>, at the University of Northern Iowa.
+The Berkeley-DB based global array library was written by Matthew Lockner,
+<lockner@cns.uni.edu>.
+Work on the client-server extensions of the compiler are currently authored by
+Michael Janssen, <janssen@cns.uni.edu>.
+
+.SH SEE ALSO
+The full documentation of this compiler, including a full reference on the
+Mumps language and the dialect supported by this compiler, may be found in
+.PP
+/usr/share/doc/mumpsc/compiler.html
+.PP
+man pages: mumps-ssl-server, mumps-tcp-server, and mumps-udp-server
+.PP
+Also in that area are included a few sample Mumps programs.

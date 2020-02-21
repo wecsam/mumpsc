@@ -1,0 +1,108 @@
+#!/bin/bash
+
+# June 3, 2017
+
+# This script builds a version of Mumps that uses the native B-tree based
+# global array database system in single mode. This means that only one
+# instance of a read/write enabled Mumps interprter may be active on a
+# specific set of database files (key.dat and data.dat) at a time. This
+# version of the database is fastest. This script also bulds a read-only
+# version of the Mumps interpreter. Multiple read-only instances of Mumps
+# may simultaneously be active on a specific set of database files. None
+# of these instances may alter the database.
+
+# Other options here are:
+#	--with-hardware-math which causes arithmetic to be done using hardware facilities.
+#		Remove this if you want extended precision.
+#	--with-cache=33 This is the number of global array cached database blocks. If you
+#		are using --with-standalone, this pramater should not be large.
+#	--with-block=2048 This is the size of the B-tree block. It must be in increments
+#		of 1024.
+
+if [ "$OSTYPE" != "cygwin" ]; then
+
+	if [ `whoami` != "root" ]; then
+        	echo "**** you must be root to run this script"
+        	exit
+        	fi
+else
+	rm -f /usr/bin/mumps2c
+	rm -f /usr/bin/mumps
+fi
+
+echo "Building Mumps with Globals Resident in a Shared Native Btree"
+echo
+
+#************************************************************************
+
+# build version with read-only access to the global arrays
+
+./configure prefix=/usr \
+--with-readonly \
+--with-cache=33 \
+--with-int-32 \
+--with-hardware-math \
+--with-float-digits=6 \
+--with-block=2048 
+
+# additional options
+
+#--with-profile 
+#--with-no-inline 
+#--with-hardware-math 
+#--with-int-32 
+#--with-long-double 
+#--with-float-bits=72
+
+if (($? > 0))
+	then
+	echo "Configure error 1"
+	exit
+	fi
+
+# number of concurrent make jobs
+
+JOBS=6
+
+make -j $JOBS && make install
+
+if (($? > 0))
+	then
+	echo "Make error"
+	exit
+	fi
+
+mv mumps mumpsRO
+mv /usr/bin/mumps /usr/bin/mumpsRO
+
+#************************************************************************
+
+# build read/write Mumps interpreter
+
+./configure prefix=/usr \
+--with-cache=33 \
+--with-hardware-math \
+--with-int-32 \
+--with-float-digits=6 \
+--with-block=2048
+
+# additional options
+
+#--with-profile 
+#--with-no-inline 
+#--with-hardware-math 
+#--with-int-32 
+#--with-long-double 
+#--with-float-bits=72
+
+if (($? > 0))
+	then
+	echo "Configure error"
+	exit
+	fi
+
+# number of concurrent make jobs
+
+JOBS=6
+
+make -j $JOBS && make install

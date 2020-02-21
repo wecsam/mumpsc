@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# load RDBMS database with separate data.
+# each global arry in a separate table
+
+# psql medical -F '#' --no-align -c "select * from labs;" -o xxx
+
+loadlabs.mps < labs
+loadlabtab.mps < labtab
+loadprobtab.mps < probtab
+loadprobs.mps < problems
+loadmedtab.mps < medtab
+loadmedadmin.mps < medadmin
+loadpatientid.mps < patientid
+loadvitals.mps < vitals

@@ -1,0 +1,358 @@
+/*#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+	Mumps Compiler Run-Time Support Functions
+ *#+	Copyright (c) A.D. 2001, 2002, 2003, 2010, 2012 by Kevin C. O'Kane
+ *#+	okane@cs.uni.edu
+ *#+
+ *#+	This library is free software; you can redistribute it and/or
+ *#+	modify it under the terms of the GNU Lesser General Public
+ *#+	License as published by the Free Software Foundation; either
+ *#+	version 2.1 of the License, or (at your option) any later version.
+ *#+
+ *#+	This library is distributed in the hope that it will be useful,
+ *#+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *#+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *#+	Lesser General Public License for more details.
+ *#+
+ *#+   You should have received a copy of the GNU Lesser General Public
+ *#+	License along with this library; if not, write to the Free Software
+ *#+	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *#+
+ *#+	http://www.cs.uni.edu/~okane
+ *#+
+ *#+    The sockets code was done by Ben Fain
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+
+ *#+	Some of this code was originally written in Fortran
+ *#+	which will explain the odd array and label usage,
+ *#+	especially arrays beginning at index 1.
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+
+ *#+	This is the native btree global array handler from the
+ *#+	Mumps Compiler.
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+#include <stdio.h>
+
+#include <unistd.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <stddef.h>
+#include <errno.h>
+#include <iostream>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <stdlib.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+
+#include <mumpsc/stateVector.h>
+#include <mumpsc/global.h>
+#include <mumpsc/defines.h>
+#include <mumpsc/btree.h>
+#include <mumpsc/keyfix.h>
+
+
+// the next item becomes #define NATIVE or POSTGRESDB depending on the DB in use
+
+@dbtype@
+
+// the next item becomes #define CLIENT if --with-client specified in configure
+
+@client@
+
+// the next item becomes the size of the buffer used to send msgs to/from the server
+
+@serverbuf@
+
+struct mymsgbuf
+{
+  long cid;                 /* Client ID */
+  char buff0[SERVERBUF+1];  /* Buf0 sent from client*/
+  char buff1[SERVERBUF];    /* Buf1 sent from client*/
+  struct socketdata         /* Socket Data needed to send data back to client */
+  {
+    int socket;
+    char  socketname[108];
+  }socketinfo;
+};
+
+int send_message( int qid, mymsgbuf qbuf )
+{
+        int     result, length;
+
+        /* The length is essentially the size of the structure minus sizeof(mtype) */
+        length = sizeof(struct mymsgbuf)-sizeof(long);
+
+        if((result = msgsnd( qid, &qbuf, length, 0)) == -1)
+        {
+                return(-1);
+        }
+        
+        return(result);
+}
+
+
+int open_queue(key_t keyval)
+{
+  int qid = 1;
+  if ((qid = msgget(keyval,0777)) == -1)
+    {
+      return -1;
+    }
+  return qid;
+}
+
+int Mglobal (const int g, unsigned char key[], unsigned char bd[], struct MSV * svPtr) {
+//void keyfix (unsigned char *vxd, struct MSV * svPtr);
+void unpad(unsigned char *key, struct MSV *svPtr);
+
+void sigint(int);
+static int CloseFlg=0;
+
+
+// ********************  C L I E N T  C O D E *********************************
+// ********************  C L I E N T  C O D E *********************************
+// ********************  C L I E N T  C O D E *********************************
+
+#ifdef CLIENT
+
+// Variables for socket and message queue
+ struct sockaddr_un name;
+ int sock,qid,ret,length,namelength,size,ret1,ret2;
+ key_t  msgkey;
+ struct mymsgbuf msg;
+ char retBuff0[SERVERBUF+1];
+ char retBuff1[SERVERBUF];
+
+// ******************* Open socket for return data ***********************     
+
+// Generate unique filename for each socket
+ char tmp[100];
+ sprintf(tmp,"/tmp/%d.tmp",getpid());
+ //unlink(tmp)
+
+/* Create the socket. */
+ sock = socket (AF_UNIX, SOCK_DGRAM, 0);
+ if (sock < 0)
+   {
+     perror ("Error Creating Socket");
+     exit (EXIT_FAILURE);
+   }
+ //printf("Socket# before bind:%d\n",sock);     
+/* Bind a name to the socket. */
+ name.sun_family = AF_UNIX;
+ strcpy (name.sun_path,tmp);
+
+/* Socket size*/
+ size = sizeof(struct sockaddr_un);
+
+/* Bind the address to the socket */     
+ if (bind (sock,(struct sockaddr *) &name, size) < 0)
+   {
+     perror ("Binding Failure");
+     exit (EXIT_FAILURE);
+   }
+ //printf("Socket# after bind:%d\n",sock);
+ int rc = syscall(SYS_chmod,tmp,0777);    
+      
+// ********** open the message queue and return the id
+
+/* Generate an IPC key value */
+ msgkey = ftok("/tmp/mumps.tmp", 'A');
+ 
+/* Open/create the queue */
+ if(( qid = open_queue( msgkey)) == -1) {
+   perror("open_queue");
+   exit(1);
+  }
+ //printf("%s\n","opened the queue");
+
+ static char netBuf0[SERVERBUF+1];
+ static char netBuf1[SERVERBUF];
+ 
+ if (g==CLOSE) {
+	printf("\nClosing connection with server.....\n");
+	close(sock);
+	unlink(tmp);
+// *************** disconnect from server code goes here
+
+	return 0;
+	}
+ //printf("%s\n","before copying g,key,bd");
+ strcpy(&netBuf0[1],(char *)key); netBuf0[0]=g;
+ strcpy(netBuf1,(char *)bd);
+ //printf("%s\n","after copying g,key,bd");
+
+//************************************************************
+// SEND netBuf0 and netBuf1 to the server and wait for a reply
+//************************************************************
+
+//Fill the message
+ msg.cid = getpid();
+ //printf("current pid:%d",msg.cid);
+ //printf("Size of netBuf0:%d\n",sizeof(netBuf0));
+ //printf("Size of netBuf1:%d\n",sizeof(netBuf1));
+ memcpy(msg.buff0,netBuf0,sizeof(msg.buff0));
+ memcpy(msg.buff1,netBuf1,sizeof(msg.buff1));
+ 
+ msg.socketinfo.socket = sock;
+ memcpy(msg.socketinfo.socketname,name.sun_path,sizeof(name.sun_path));
+ //printf("Socket name:%s",name.sun_path);
+ //printf("QID is:%d\n",qid);
+ //printf("Message 1 is:%s\n",msg.buff0);
+ //printf("Message 2 is:%s\n",msg.buff1);
+ //printf("Size of Message:%d\n",sizeof(msg));
+//Send the message
+ if((send_message( qid, msg )) == -1) 
+   {
+     perror("Error Sending Message");
+     exit(1);
+   }
+
+//************************************************************
+// get reply netBuf0 and netBuf1 from server
+//************************************************************
+ length = sizeof(struct mymsgbuf);
+ namelength = sizeof(name);
+ ret1 = read(sock,retBuff0, SERVERBUF+1);
+ //printf("response size1:%d\n",ret1);
+ //printf("response result:%s\n",retBuff0);
+ ret2 = read(sock,retBuff1, SERVERBUF);
+ //printf("response size2:%d\n",ret2); 
+ //printf("response result:%s\n",retBuff1);
+ if ((ret1<0) || (ret2<0)){
+   perror("receiving datagram packet");
+   exit(1);
+ }
+ 
+ strncpy( (char *) key, (char *) &retBuff0[1],1025);
+ strncpy( (char *) bd, (char *) retBuff1,1024);
+
+//close socket
+ close(sock);
+ unlink(tmp);
+
+
+ return retBuff0[0];
+
+#endif
+
+// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// ************* native mode begins here - don't touch **********************
+// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+
+#ifdef POSTGRESSDB
+keyfix(key);
+return btree(g,key,bd,svPtr);
+#endif
+
+if (g==RETRIEVE) {
+      int i;
+      keyfix(key);
+      i=btree(g,key,bd,svPtr);
+      return i;
+      }
+
+if (g==STORE) {
+      int i;
+      keyfix(key);
+      i=btree(g,key,bd,svPtr);
+      return i;
+      }
+
+if (g==ORDERNEXT || g==ORDERPREV || 
+    g==NEXT || g==PREVIOUS) {     /* prepare NEXT/ORDER cases */
+        int b,j,gx=g;
+        unsigned char hold[STR_MAX];
+        j=strlen( (const char *) key);
+        if (g!=ORDERNEXT && g!=ORDERPREV && 
+            key[j-1]==1 && key[j-2]=='1' && 
+            key[j-3]=='-' && key[j-4]==1) { /* $next -1 case */
+            key[j-3]=2;
+            key[j-2]=1;
+            key[j-2]=0;
+            key[j-1]=0;
+            strcpy( (char *) bd,"");
+            strcpy( (char *) svPtr->naked,"");
+            j--;
+            }
+        else if (g==NEXT || g==ORDERNEXT) {
+            key[j-1]=2;
+            key[j]=0;
+            key[j+1]=0;
+            key[j+2]=0;
+            key[j+3]=0;
+            strcpy( (char *) bd,"");
+            strcpy( (char *) svPtr->naked,"");
+            }
+        else if (g==ORDERPREV && key[j-1]==1 && key[j-2]==1) {
+            key[j-1]='~';
+            }
+        gx=g;
+        if (gx==NEXT) gx=XNEXT;
+        else if (gx==ORDERNEXT) gx=XNEXT;
+        else if (gx==ORDERPREV) gx=PREVIOUS;
+        keyfix(key);
+        strcpy( (char *) hold, (const char * ) key);
+        b=btree(gx,key,bd,svPtr);
+        if (g==NEXT || g==ORDERNEXT || g==ORDERPREV) {
+            j=strlen( (const char *) hold)-1;
+            if (hold[j]==1) j--;
+            for (; j>0 && hold[j]!=1; j--);
+            if (strncmp(( const char  * ) hold,( const char  * ) bd,j)!=0 ||
+                hold[j]!=1 ||
+                bd[j]!=1) {
+                  if (g==NEXT) strcpy( (char *) bd,"-1");
+                  else strcpy( (char *) bd,"");
+                  return 0;
+                  }
+//            if (j>0) strcpy( (char *) bd, (const char * ) &bd[j+1]); STRCPY
+            if (j>0)  {
+		unsigned char * x=bd; 
+		unsigned char * y= &bd[j+1]; 
+		for (; *y != 0; x++,y++) *x = *y; // STRCPY
+		*x=0;
+		}
+            for (j=0; bd[j]!=1&&bd[j]!=0; j++);
+            bd[j]=0;
+            unpad(bd,svPtr);
+            if (strlen( (const char *) bd)==0) {
+                  if (g==NEXT) strcpy( (char *) bd,"-1");
+                  else strcpy( (char *) bd,"");
+                  return 0;
+                  }
+            return 1;
+            }
+        }
+
+if (g==GKILL) { 
+      return btree(g,key,bd,svPtr); 
+      }
+
+if (g==XNEXT) { int i; 
+      keyfix(key);
+      return btree(g,key,bd,svPtr); 
+      }
+
+if (g==CLOSE) { 
+//      if (CloseFlg) return EXIT_SUCCESS;
+//      CloseFlg=1;
+      btree(g,key,bd,svPtr); 
+      return EXIT_SUCCESS; 
+      }
+
+return 0;
+}

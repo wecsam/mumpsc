@@ -1,0 +1,12 @@
+This source tree is kept somewhat behind the "official" version found
+on fianna.cs.uni.edu.  Here is what we know to remain:
+
+* Support for native global array handler
+* Support for client-server layer (as a compile-time option)
+
+Also, we would like eventually add:
+* Comprehensive test cases for libmumps
+* Brutalizing tests for global array handlers
+* Parser brutality tests (much less urgent)
+
+in sym_() __label_lookup diabled - conflicts with libmpscpp.cpp

@@ -1,0 +1,2405 @@
+@dbtype@
+
+#define CSTR (char *)
+
+#if !(defined POSTGRESSDB || defined MYSQLDB )
+
+//************************************************************************************
+//************************************************************************************
+//************************************************************************************
+//************************************************************************************
+// NATIVE SECTION
+//************************************************************************************
+//************************************************************************************
+//************************************************************************************
+//************************************************************************************
+
+/*#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+	Mumps Compiler Run-Time Support Functions
+ *#+	Copyright (c) 2001, 2002, 2003, 2004, 2013, 2015, 2016, 2017 by Kevin C. O'Kane
+ *#+    kc.okane@gmail.com
+ *#+    http://threadsafebooks.com/
+ *#+	http://www.cs.uni.edu/~okane
+ *#+
+ *#+	This library is free software; you can redistribute it and/or
+ *#+	modify it under the terms of the GNU Lesser General Public
+ *#+	License as published by the Free Software Foundation; either
+ *#+	version 2.1 of the License, or (at your option) any later version.
+ *#+
+ *#+	This library is distributed in the hope that it will be useful,
+ *#+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *#+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *#+	Lesser General Public License for more details.
+ *#+
+ *#+   You should have received a copy of the GNU Lesser General Public
+ *#+	License along with this library; if not, write to the Free Software
+ *#+	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *#+
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+
+ *#+	Some of this code was originally written in Fortran
+ *#+	which will explain the odd array and label usage,
+ *#+	especially arrays beginning at index 1.
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+
+ *#+	This is the native btree global array handler from the
+ *#+	Mumps Compiler.
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+/*#+...............................................................
+ *#+	Modify this file depending on your OS and desired features
+ *#+	July 3, 2004
+ *#+...............................................................*/
+
+#include <mumpsc/defines.h>
+#include <mumpsc/btree.h>
+#include <signal.h>
+#include <errno.h>
+#include <stdlib.h>
+
+#define MODIFIED 1
+#define UNMODIFIED 0
+#define OK 1
+#define BAD 0
+
+#include <unistd.h>
+#define LSEEK lseek
+#define OFF_T off_t
+
+@readonly@
+
+struct buffers *bfr[GBLBUF]= {0};
+
+#define DumpBlocks
+
+#ifdef DumpBlocks
+void pb(@LONG@, unsigned char * );
+#endif
+
+void sigint(int);
+
+@inline@ void memxmove(char *to, char *from, char * limit, char *end) {
+    while (from <= limit) {
+        *(to++)=*(from++);
+        }
+    while (to < end) {
+        *to=0;
+        to++;
+        }
+    }
+
+unsigned char BigKey[STR_MAX];
+unsigned @LONG@ BigKeyBlock;
+unsigned @LONG@ FoundBlock;
+unsigned @LONG@ Reinsert;
+unsigned @LONG@ BigKeyParent;
+unsigned @LONG@ BigKeyParentOffset;
+@LONG@ BigKeyOffset;
+@LONG@ BigKeyLower;
+@LONG@ FoundOffset;
+OFF_T BigKeyData;
+
+/*===========================================================================*
+ *				    freadx				     *
+ *===========================================================================*/
+
+@inline@ void freadx(unsigned char **buf, @LONG@ r, int flag, struct MSV * svPtr) {
+
+//    duplicate call detection - doesn't help much
+//    static @LONG@ lastR = -1;
+//    static int lastFlag = -1;
+//    static unsigned char *lastBuf;
+//    if ( r == lastR && flag == lastFlag && lastBuf == *buf ) return; // duplicate call
+//    lastR = r; lastFlag = flag; lastBuf=*buf;
+
+    static @LONG@ R; R  = r << PAGE_SHIFT;
+    static @LONG@ indx; indx = (r & AMASK) + 1;
+
+    if (r < 16) {	     /* root block */
+
+        bfr[0]->gblmod=1;
+
+        if ( bfr[0]->gblbfx < 0L ) {	/* load root */
+            LSEEK(gblfd, (OFF_T)0, SEEK_SET);
+            read(gblfd, bfr[0]->gblbf, MBLOCK);
+            bfr[0]->gblbfx = 0L;
+            *buf = (unsigned char *) bfr[0]->gblbf + r;
+            return;
+            }
+
+        *buf = (unsigned char *) bfr[0]->gblbf + r;
+        return;
+        }
+
+//    svPtr->count++; // statistics
+
+    if ( bfr[indx]->gblbfx == r ) {
+        if (flag) bfr[indx]->gblmod = 1;
+        *buf = (unsigned char *) bfr[indx]->gblbf;
+//      svPtr->hit++; // statistics
+        return;
+        }
+
+    if ( bfr[indx]->gblmod ) {		/* write modified block */
+        LSEEK(gblfd, (OFF_T)(bfr[indx]->gblbfx) << PAGE_SHIFT, SEEK_SET);
+        write(gblfd, bfr[indx]->gblbf, MBLOCK);
+        }
+
+    LSEEK(gblfd, (OFF_T)(r) << PAGE_SHIFT, SEEK_SET);
+    read(gblfd, bfr[indx]->gblbf, MBLOCK);
+    *buf = (unsigned char *) bfr[indx]->gblbf;
+    bfr[indx]->gblbfx = r;
+    bfr[indx]->gblmod = flag;
+    return;
+    }
+
+/*===========================================================================*
+ *				    flush				     *
+ *===========================================================================*/
+
+/* *****************************
+   flush all internal buffers
+   *****************************/
+
+void flush(struct MSV *svPtr) {
+    @LONG@ is,*root;
+
+    for (is = 0; is < GBLBUF; is++) {	/* dump global buffers */
+        if (bfr[is]->gblmod > 0) {
+            LSEEK(gblfd, (OFF_T)(bfr[is]->gblbfx)<<PAGE_SHIFT, SEEK_SET);
+            write(gblfd, bfr[is]->gblbf, MBLOCK);
+            bfr[is]->gblmod = 0;
+            }
+        }
+
+    freadx((unsigned char **) &root, 12L, MODIFIED, svPtr);
+    *root = 777L;		/* mark as proper close */
+
+    LSEEK(gblfd, (OFF_T)0, SEEK_SET);
+    write(gblfd, bfr[0]->gblbf, MBLOCK);	/* dump super block */
+    bfr[0]->gblmod = 0;
+    }
+
+/*===========================================================================*
+ *				    strxcmp				     *
+ *===========================================================================*/
+
+/* ***************************************************************
+   modified string comparison function that scans to
+   end of second argument if first argument is less than second
+   ***************************************************************/
+
+@inline@ int strxcmp(unsigned char *p1, unsigned char *p2) {
+    unsigned char *p3=p2;
+
+    while (*p1 && *p2 && *p1==*p2) {
+        p1++;
+        p2++;
+        }
+
+    if (*p1==*p2) return 0;
+
+    if (*p1<*p2) return -1;
+
+    while (*(p2++));
+
+    return p2-p3-1;
+    }
+
+/*===========================================================================*
+ *				    scanblocks				     *
+ *===========================================================================*/
+
+/* ************************************************
+   trace descendant blocks for highest key value
+   *************************************************/
+
+@inline@ void scanblocks (@LONG@ i, struct MSV * svPtr) {
+
+    unsigned char *block;
+    static unsigned char key[STR_MAX];  // do not recreate during recursion
+    static unsigned char mark[2]= {MMARK,0}; // do not recreate during recursion 0xff
+    @LONG@ lower, is, ptr1=4;
+
+    freadx(&block, i, UNMODIFIED, svPtr);
+
+    while (1) {
+
+        if (strcmp( (const char *) mark,  (const char *) block + ptr1) == 0) break;
+
+        strcpy( (char * ) key, (const char *) block+ptr1);
+
+        if (strcmp( (const char *) key, (const char *) BigKey) > 0) {
+            strcpy( (char * ) BigKey, (const char *) key);
+            BigKeyBlock = i;
+            BigKeyOffset = ptr1;
+            memcpy(&lower, block+ptr1-4, 4);
+            BigKeyLower=lower;
+            memcpy(&BigKeyData, block + ptr1 + strlen( (const char *) block + ptr1) + 1, ADSIZE);
+            }
+
+        memcpy(&lower, block+ptr1-4, 4);
+        ptr1 += strlen( (const char *) block + ptr1) + ADSIZE + 6;      /*key & data */ 
+        }
+
+// trace high end descendents of mark if any
+
+    memcpy(&lower, block + ptr1 - 4, 4);
+
+    if (lower > 0) {
+        BigKeyParent = i;
+        BigKeyParentOffset = ptr1 - 4;
+        scanblocks(lower, svPtr);
+        }
+    }
+
+/*===========================================================================*
+ *				   allocblk				     *
+ *===========================================================================*/
+
+@inline@ @LONG@ allocblk(struct MSV * svPtr) {
+
+    @LONG@ *lastrec;
+    OFF_T rec;
+    unsigned char *block;
+
+    freadx((unsigned char **) &lastrec, ADSIZE, MODIFIED, svPtr);
+    rec = *lastrec;
+    rec=rec<<PAGE_SHIFT;
+    rec=rec+MBLOCK;
+    *lastrec=(@LONG@)(rec>>PAGE_SHIFT);
+    freadx(&block, (*lastrec), MODIFIED, svPtr);
+    return (@LONG@)(rec>>PAGE_SHIFT);
+    }
+
+/*===========================================================================*
+ *				    btree                                            *
+ *===========================================================================*/
+
+int btree (int g, unsigned char key[], unsigned char bd[], struct MSV * svPtr) {
+
+    static @LONG@ trxmax=0,trace[TRXLIMIT], ilong, zero = 0, i, blkaddr1, m ;
+    static OFF_T datptr;
+    static @LONG@ *root, *lastrec, *RDFlg;
+    static @LONG@ downblocknbr, rtf, datlen, nxtln, tmp1, blkoff, is, ks, ls, kk, ii;
+    static @LONG@ opnflg = 0;
+    static @LONG@ tracep[TRXLIMIT];
+    static unsigned char *block, *block1, *ptr1,*ptr2, *ptr3;
+    static unsigned char bufblk[DBL_STR+2]= {0};
+    static unsigned char prev[MBLOCK+2]= {0};
+    unsigned char vv[2];
+    @LONG@ upper,upperoffset;
+    int restoreFlag=0;
+
+	static unsigned char * to;  
+	static unsigned char * from; 
+	static int length; 
+
+    if (g==RESTORE) {
+        restoreFlag=1;    // special re-insertion case during deletes
+        g=STORE;
+        }
+
+    if (opnflg == 0 && g==CLOSE) return OK; // files not open - no need to close
+
+#ifndef CYGWIN
+    if (sizeof(OFF_T)!=ADSIZE) {   // check if file address sizes match
+        printf("ADSIZE not set correctly for current file system\n");
+        sigint(100); // terminate
+        }
+#endif
+
+    rtf = 1;   /* retry flag - prevents nxtln from being reset */
+
+    if (g == XNEXT || g == PREVIOUS) {     /* prepare NEXT cases */
+
+        strcpy( (char * ) prev,"");
+        blkoff = strlen( (const char *) key);
+
+        if (rtf) {
+            for (nxtln = blkoff - 2; nxtln > 0 && key[nxtln] != NEXTMARK; nxtln--);
+            if (nxtln > 0) nxtln++;
+            nxtln=blkoff-1;
+            nxtln=0;
+            }
+
+        rtf = 0;
+        }
+
+    /* *****************************************
+       section to open main data and key files
+       *****************************************/
+
+    if (opnflg == 0) {		/* auto open */
+
+        for (i = 0; i < GBLBUF; i++) {	/* allocate buffers */
+            if (bfr[i]==0) {
+
+                bfr[i] = (buffers *) malloc(sizeof(struct buffers));
+                if (bfr[i]==NULL) {
+                    printf("Insufficient memory for global array buffers %ld\n", GBLBUF);
+                    sigint(100);
+                    }
+                }
+
+            bfr[i]->gblbfx = -1L;
+            bfr[i]->gblmod = 0;
+            }
+
+        opnflg = 1;
+
+#ifdef NEW_TREE
+        sprintf(cfgkey, "key%d.tmp", getpid());
+        sprintf(cfgdata, "dat%d.tmp", getpid());
+#endif
+
+reopen:
+
+// -----------------------------------------
+// open fails (O_EXCL) if file already exists
+// -----------------------------------------
+
+#ifndef READ_ONLY
+
+        gblfd = open( (const char *) svPtr->UKEY, @iomod@ O_RDWR | O_EXCL); // try to open existing file
+
+        if (gblfd < 0 && errno == EACCES) {
+            printf("\n*** key.dat file access (EACCES) error in or near line %d\n", svPtr->LineNumber);
+            sigint(100);
+            }
+
+        gbldat = open((const char *) svPtr->UDAT, @iomod@ O_RDWR | O_EXCL); // try to open existing file
+
+        if (gbldat < 0 && errno == EACCES) {
+            printf("\n*** data.dat file access (EACCES) error in or near line %d\n", svPtr->LineNumber);
+            sigint(100);
+            }
+
+#else
+        gblfd = open( (const char *) svPtr->UKEY, @iomod@ O_RDONLY | O_EXCL); // try to open existing file
+        gbldat = open((const char *) svPtr->UDAT, @iomod@ O_RDONLY | O_EXCL); // try to open existing file
+#endif
+
+
+// ******************************
+//   unix file locking
+//   LOCK_EX is a system symbol
+// ******************************
+
+#if defined(LOCK_EX) && ! defined(READ_ONLY)
+
+// will wait for file if already locked
+
+        if(gblfd!=-1) flock(gblfd, LOCK_EX);	// do not proceed until locked
+        // do not lock if READ_ONLY
+#endif
+
+        if (gblfd == -1) {	/* Does not exist - create and initialize */
+
+#ifdef READ_ONLY
+            printf("Attempt to create read only native database\n");
+            sigint(100);
+#endif
+
+            gblfd = open( (const char *) svPtr->UKEY, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+            gbldat = open((const char *) svPtr->UDAT, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+
+            freadx(&block, 0L, MODIFIED, svPtr);	/* get a buffer address */
+
+                {
+                @LONG@ i;
+
+                for (i = 0; i < MBLOCK; i++) block[i] = 0;
+                }
+
+            for (is = 0; is <= 4; is++) {	/* init to zeros */
+                LSEEK(gblfd, (OFF_T)(is * MBLOCK), SEEK_SET);
+                write(gblfd, block, MBLOCK);
+                }
+
+            LSEEK(gbldat, (OFF_T)0, SEEK_SET);	      /* move to origin */
+            write(gbldat, block, 2);	/* init data file */
+
+            freadx((unsigned char **) &root, 12L, MODIFIED, svPtr);
+            *root = 777L;	/* integrity flg */
+
+            freadx((unsigned char **) &root, 0L, MODIFIED, svPtr);
+            *root = 0L;		/* root */
+
+            freadx((unsigned char **) &root, 4L, MODIFIED, svPtr);
+            *root = 0L;		/* no meaning */
+
+            freadx((unsigned char **) &lastrec, 8, MODIFIED, svPtr);
+            *lastrec = 16;   /* extent */
+
+            LSEEK(gblfd, (OFF_T)0, SEEK_SET);
+            write(gblfd, bfr[0]->gblbf, MBLOCK);	/* root block */
+
+            close(gblfd);
+            close(gbldat);
+            goto reopen;
+            }
+
+        freadx((unsigned char **) &root, 12L, MODIFIED, svPtr);	/* integrity flag */
+
+        if (*root != 777L) {
+            printf("\nFile system error in program %s\n",svPtr->program);
+            abort();
+            }
+
+        /*..........................................
+           now done only when file system altered .....
+           *root=0L;
+           LSEEK(gblfd,0L,SEEK_SET);
+           write(gblfd,bfr[0]->gblbf,MBLOCK);
+           ............................................ */
+
+        }
+
+    if (g == FLUSH) {
+        flush(svPtr);
+        return OK;
+        }
+
+    if (g == CLOSE ) {	 /* CLOSE SECTION */
+
+#ifdef NEW_TREE
+        remove((const char *) svPtr->UDAT);
+        remove( (const char *) svPtr->UKEY);
+        return OK;
+#endif
+
+        if (opnflg == 0) return OK;
+
+        flush(svPtr);
+
+        close(gblfd);
+        close(gbldat);
+        opnflg = 0;
+        return OK;
+        }
+
+    /*  srch:  */	  /* Label found to be unused */
+
+    freadx((unsigned char **) &root, 0L, UNMODIFIED, svPtr);
+
+// -----------------------------------------------------------------------------
+//                            new tree
+// -----------------------------------------------------------------------------
+
+    if (*root == 0) {		/*no tree */
+
+        if (g == PREVIOUS || g == RETRIEVE) {
+            bd[0]=0;
+            return BAD;
+            }
+
+        if (g != STORE) { // no other op permitted on new tree
+            bd[0] = 0;
+            return BAD;
+            }
+
+        if (g == STORE) {	/*insert case */
+
+            if (ReadOnly) {
+
+#ifdef READ_ONLY
+                printf("Native database read only violation\n");
+                sigint(100);
+#endif
+                freadx((unsigned char **) &RDFlg, 12L, MODIFIED, svPtr);	/* integrity flag */
+                *RDFlg = 0L;	/* mark as open - reset at close */
+                LSEEK(gblfd, (OFF_T)0, SEEK_SET);
+                write(gblfd, bfr[0]->gblbf, MBLOCK);	/* dump super block */
+                ReadOnly = 0;
+                }
+
+            blkaddr1 = allocblk(svPtr);
+            freadx(&block, 0L, MODIFIED, svPtr);
+            memcpy(block, &blkaddr1, 4);
+            freadx(&block, blkaddr1, MODIFIED, svPtr);	/* k block */
+
+            memset (block, 0, MBLOCK);
+
+            blkoff = 4;
+            strcpy( (char * ) &block[blkoff],  (const char *) key);	/*key */
+            blkoff += strlen( (const char *) key) + 1;
+
+            if (restoreFlag) datptr=svPtr->restoredata;
+
+            else if (strlen( (const char *) bd) == 0) {
+                datptr = 0L;
+                }
+
+            else {
+                datptr = LSEEK(gbldat, (OFF_T)0, SEEK_END);
+                datlen = strlen( (const char *) bd) + 1;
+                write(gbldat, &datlen, 2);	/* length code */
+                write(gbldat, bd, datlen);	/* data */
+                }
+
+            memcpy(&block[blkoff], &datptr, ADSIZE);	     /* data address */ /* ZZZ */
+            blkoff += ADSIZE;
+            block[blkoff++] = 0;
+            memcpy(&block[blkoff], &zero, 4);
+            block[blkoff + 4] = MMARK;
+            block[blkoff + 5] = 0;
+            // flush(svPtr);
+            return OK;
+            }
+        }
+
+// ----------------------------- end new tree section --------------------------
+
+
+/*****************************************************************
+                        search section
+******************************************************************/
+
+    i = *root; // disk address of tree root block
+    trx = -1;
+
+nxtblk:
+
+    trace[++trx] = i;
+
+    if (trx>trxmax) trxmax=trx;
+
+    if (trx >= TRXLIMIT) {
+        printf("Btree trace stack limit reached - increase TRXLIMIT\n");
+        sigint(SIGINT);
+        }
+
+    freadx(&block, i, UNMODIFIED, svPtr);	// fetch tree root block
+    ptr1 = block;  				// address of block in memory
+
+
+// ------------------------ block scan ------------------------------------------
+
+nxtkey:
+
+    ptr1 += 4;					// skip child pointer
+
+    while ((is = strxcmp(key, ptr1)) > 0) {	// scan keys in block
+						// is is length of key scanned if positive
+
+        if (g == PREVIOUS) {				// remember previous key
+            memcpy(&datptr, ptr1 + is + 1, ADSIZE);	// data file address
+            if (datptr >= 0 )
+		strcpy( (char * ) prev,  (const char *) ptr1);
+            }
+
+        ptr1 += is + ADSIZE+6;			// advance past key & data 
+        }
+
+// ---------------------end block scan ------------------------------------------
+
+
+    tracep[trx] = (@LONG@) (ptr1 - block) - 4;
+
+    if (is < 0) {
+        memcpy(&ilong, ptr1 - 4, 4);		// extract child block addr
+
+        if (ilong <= 0L) {			// no child - we're done
+            blkoff = (@LONG@) (ptr1 - block);	// integer offset in block
+            goto fail;
+            }
+
+        i = ilong;
+        goto nxtblk;
+        }
+
+    /* **************************************************************************
+                                 key found
+       **************************************************************************/
+
+    FoundOffset=ptr1-block;
+    FoundBlock=i;
+
+p000:
+
+    if (g == PREVIOUS) {
+
+        memcpy(&ilong, ptr1 - 4, 4);  /* block address */
+
+        if (ilong <= 0L) {
+            blkoff = (@LONG@) (ptr1 - block);
+            strcpy( (char * ) bd, (const char *) prev);
+            return 1;
+            }
+
+        i = ilong;
+        goto nxtblk;
+
+        nxtln = strlen( (const char *) key) - 2;
+        blkoff = nxtln;
+
+        for (; key[nxtln] != 0 && key[nxtln] != NEXTMARK; nxtln--);
+
+        if (strncmp( (const char *) prev,  (const char *) key, nxtln) == 0) {
+            is = 0;
+            ls = nxtln + 1;
+
+            while (prev[ls] != NEXTMARK) bd[is++] = prev[ls++];
+
+            bd[is] = 0;
+            key[blkoff + 1] = 0;
+
+            if (strcmp( (const char *) bd,  (const char *) &key[nxtln + 1]) == 0) {
+                strcpy( (char * ) bd, "");
+                return BAD;
+                }
+
+            while(bd[0]==' ') strcpy( (char * ) bd, (const char *) &bd[1]);
+
+            if (bd[0]==0) {
+                strcpy( (char * ) bd,"");
+                return 0;
+                }
+
+            return OK;
+            }
+        else {
+            strcpy( (char * ) bd, "");
+            return BAD;
+            }
+        }
+
+// -----------------------------------------------------------------------------------------------
+
+    if (g == RETRIEVE) {	/*search operation */
+        while (*(ptr1++));
+        memcpy(&datptr, ptr1, ADSIZE);	/* ZZZ */
+
+        if (datptr <= 0L) {
+            bd[0] = 0;
+            return OK;
+            }
+
+        else {
+            LSEEK(gbldat, (OFF_T)datptr, SEEK_SET);
+            read(gbldat, &datlen, 2);	/* length of data */
+            read(gbldat, bd, datlen);	/* data */
+            }
+
+        return OK;
+        }
+
+// -----------------------------------------------------------------------------------------------
+
+    if (g == STORE) {		/* store */
+
+        if (ReadOnly) {
+
+#ifdef READ_ONLY
+            printf("Native database read only violation\n");
+            sigint(100);
+#endif
+
+            freadx((unsigned char **) &RDFlg, 12L, MODIFIED, svPtr);	/* integrity flag */
+            *RDFlg = 0L;	/* mark as open - reset at close */
+            LSEEK(gblfd, (OFF_T)0, SEEK_SET);
+            write(gblfd, bfr[0]->gblbf, MBLOCK);	/* dump super block */
+            ReadOnly = 0;
+            }
+
+        freadx(&block, i, MODIFIED, svPtr);
+        while (*(ptr1++));
+
+        /*------------------------------*/
+        /* add new record - reuse old	*/
+        /*------------------------------*/
+
+        memcpy(&datptr, ptr1, ADSIZE);	/* ZZZ */
+
+        is = strlen( (const char *) bd);
+
+        if (datptr <= 0L) goto newrec;
+
+        LSEEK(gbldat, (OFF_T)datptr, SEEK_SET);
+        read(gbldat, &datlen, 2);	/* length code */
+
+        if (datlen > is) {
+            LSEEK(gbldat, (OFF_T)datptr, SEEK_SET);
+            goto save;
+            }
+
+        /*------------------------*/
+        /* delete old data record */
+        /* add new record at EOF  */
+        /*------------------------*/
+
+newrec:
+
+        if (is == 0) {
+            datptr = 0L;
+            goto save1;
+            }
+
+        datptr = LSEEK(gbldat, (OFF_T)0, SEEK_END);
+        datlen = is + 1;
+
+save:
+
+        write(gbldat, &datlen, 2);	/* length code */
+        write(gbldat, bd, datlen);	/* data */
+
+save1:
+
+        memcpy(ptr1, &datptr, ADSIZE);	     /* data address */ /* ZZZ */
+        return OK;
+        }
+
+    blkoff = (@LONG@) (ptr1 - block);
+
+//-------------------------------------------------------------------------------------------------------
+// KILLER
+//-------------------------------------------------------------------------------------------------------
+
+    if (g == KILL) {		/* delete */
+
+        if (ReadOnly) {
+
+#ifdef READ_ONLY
+            printf("Native database read only violation\n");
+            sigint(100);
+#endif
+
+            freadx((unsigned char **) &RDFlg, 12L, MODIFIED, svPtr);	/* integrity flag */
+            *RDFlg = 0L;	/* mark as open - reset at close */
+            LSEEK(gblfd, (OFF_T)0, SEEK_SET);
+            write(gblfd, bfr[0]->gblbf, MBLOCK);	/* dump super block */
+            ReadOnly = 0;
+            }
+
+        freadx(&block, i, MODIFIED, svPtr);
+        memcpy(&ilong,ptr1-4,4);
+
+        for (i=MBLOCK-1; block[i]==0; i--);
+        i++;
+
+        memxmove( (char *) ptr1-4,  (char *) ptr1+strlen( (const char *) ptr1)+ADSIZE+2,
+                  (char *) block+i,  (char *) block+MBLOCK); // remove the key
+
+        if (ilong==0) {
+            return OK;
+            }
+
+        strcpy( (char * ) BigKey,"");
+        BigKeyOffset=0;
+        BigKeyBlock=0;
+        Reinsert=ilong;
+
+        scanblocks(ilong,svPtr); // pass the lower
+
+        if (strcmp( (const char *) BigKey,"")==0) return OK;
+
+        freadx(&block,Reinsert,MODIFIED,svPtr);
+
+
+        // ilong points to descendent chain of key to be deleted.
+        // Big... is the highest key in that chain
+        // reload the lower block, remove the key
+
+        freadx(&block, BigKeyBlock, MODIFIED, svPtr);
+        ptr1=block+BigKeyOffset;
+
+        for (i=MBLOCK-1; block[i]==0; i--);
+        i++;
+
+        memxmove( (char *) ptr1-4,  (char *) ptr1+strlen( (const char *) ptr1)+ADSIZE+2,
+                  (char *) block+i,  (char *) block+MBLOCK); // remove the key
+
+        for (i=MBLOCK-1; block[i]==0; i--);
+        memcpy(block+i-4,&BigKeyLower,4);  // put stray descendants at end
+
+        if (*(block+4)==MMARK && BigKeyBlock==Reinsert) { // collapse empty immediate lower block
+            memcpy(&ilong,block,4); // its descendent, if any
+
+            if (ilong>=0) Reinsert=ilong;
+            }
+        else if (*(block+4)==MMARK) {  // collapse non-immediate empty lower block
+            memcpy(&ilong,block,4); // its descendent, if any
+            freadx(&block, BigKeyParent, MODIFIED, svPtr);
+            memcpy(block+BigKeyParentOffset,&ilong,4);
+            }
+
+        // reinsert key with descendents
+
+        svPtr->restoredata = BigKeyData;
+        strcpy( (char * ) bd,"xxx");
+            {
+            unsigned char tmp[STR_MAX];
+            strcpy( (char * ) tmp, (const char *) BigKey);
+            btree (RESTORE, tmp, bd, svPtr);
+            }
+        btree (RETRIEVE, BigKey, bd, svPtr);
+
+        memcpy(&ilong,block+FoundOffset-4,4);
+
+        if (ilong==0) {
+            freadx(&block,FoundBlock,MODIFIED,svPtr);
+            memcpy(block+FoundOffset-4,&Reinsert,4);
+            }
+        else {
+            printf("open not slot found BigKey=%s\n",BigKey);
+
+#ifdef DumpBlocks
+            pb(FoundBlock,block);
+#endif
+
+            sigint(100);
+            }
+
+        // flush(svPtr);
+        return OK;
+        }
+
+//----------------------------------------------------------------------------------------------------------
+
+    if (g == XNEXT) {	   /* found next */
+        blkoff += strlen( (const char *) &block[blkoff]) + ADSIZE+6;    /* next key */ /* ZZZ */
+        memcpy(&ilong, &block[blkoff - 4], 4);	/* look for lessthan childrn */
+
+        if (ilong <= 0L) {
+            goto fail;
+            }
+
+        i = ilong;
+        tracep[trx] = blkoff - 4;	/* new parent */
+        goto nxtblk;
+        }
+
+    /*end found */
+
+//----------------------------------------------------------------------------------------------------------
+
+fail:
+
+    if (g == PREVIOUS) goto p000;
+
+    if (g == XNEXT) {
+
+        if (block[blkoff] != MMARK) { // not at end of block
+
+            if (g == XNEXT) {	/* modify key */
+
+		to = key; from = block + blkoff;
+
+                while ( *(to++)= *(from++) );
+		*to = 0;
+
+		from++;
+                memcpy(&datptr, from, ADSIZE);  /* data ptr */ 
+
+		if (datptr < 0L) {
+			ptr1 = block + blkoff -4;
+			goto nxtkey;	/* dltd key */
+			}
+
+		to =  bd;
+		from = block + blkoff;
+		while ( *(to++) = *(from++) );
+		*to = 0;
+
+                return OK;
+                }
+            }
+
+// ----------------------------------------------------------------------------------------------
+//	end of block mark found
+// ----------------------------------------------------------------------------------------------
+
+upblock:
+
+        trx--;
+
+        if (trx < 0) {
+            strcpy( (char * ) bd, "");
+            return BAD;
+            }
+
+        i = trace[trx];
+        blkoff = tracep[trx] + 4;	/* key */
+        freadx(&block, i, UNMODIFIED, svPtr);
+
+        if (block[blkoff] == MMARK) goto upblock;
+
+        goto fail;		/* must be parent */
+        }
+
+
+//-------------------------------------------------------------
+//	STORE section
+//-------------------------------------------------------------
+
+    if (g == STORE) {	// store new key 
+
+        blkaddr1 = 0L;
+
+        if (restoreFlag) datptr = svPtr->restoredata;
+	        else if (!bd[0] ) datptr = 0L;	// zero length data field 
+
+        else {
+            datptr = LSEEK(gbldat, (OFF_T)0, SEEK_END);
+            datlen = strlen( (const char *) bd) + 1;
+            write(gbldat, &datlen, 2);	/* length code */
+            write(gbldat, bd, datlen);	/* data */
+            }
+
+f1:
+
+        freadx(&block, i, MODIFIED, svPtr);	/* marked for write */
+
+	unsigned char *lsp = block + blkoff; 
+
+	while (*lsp != MMARK) {
+		while( *(lsp++) );
+		lsp += ADSIZE + 5;
+		}
+	ls = lsp - block;
+
+        ks = strlen( (const char *) key);
+
+        if (ks + ls > BLOCK_SPLIT) goto split;	       /*no room */
+
+//-------------------------------------------------------------
+//	Simple store insert 
+//-------------------------------------------------------------
+
+//	The next block of code substitutes for memmove
+//	It copies beginning at the right (high) end of the strings to avoid
+//	the overlap problem.
+
+
+	length = ls - (blkoff - 4);
+	to =  &block[(blkoff - 4) + ks + ADSIZE+6] + length; 
+	from = &block[blkoff - 4] + length;
+
+        while ((length--) >= 0) *(to--) = *(from--);
+
+		to = &block[blkoff-4];
+		from = (unsigned char *) &blkaddr1;
+		*(to++) = *(from++);
+		*(to++) = *(from++);
+		*(to++) = *(from++);
+		*(to++) = *(from);
+
+		while (*key) *(to++) = *(key++);
+		*(to++) = 0;
+
+		length = ADSIZE;
+		from = (unsigned char *) &datptr;
+
+	        while ( length-- ) *(to++) = *(from++);
+
+		*(to) = 0;
+
+        return OK;
+
+//------------- end simple insert section ---------------------
+
+//-------------------------------------------------------------
+//	split insert section - split required
+//	insert prior to blkoff-4 
+//-------------------------------------------------------------
+
+split:
+
+        length = ii = blkoff - 4;
+
+		to = bufblk;
+		from = block;
+		while (length--) *(to++) = *(from++);
+
+        memcpy(&bufblk[blkoff - 4], &blkaddr1, 4);	/* child */
+
+        strcpy( (char * ) &bufblk[blkoff],  (const char *) key);	/* key */
+        blkoff += ks + 1;
+        memcpy(&bufblk[blkoff], &datptr, ADSIZE); /* data address */ /* ZZZ */
+        bufblk[blkoff + ADSIZE] = 0; /* ZZZ */
+
+		to = &bufblk[blkoff+ADSIZE+1];
+		from = &block[ii];
+		while ( (ii++) < MBLOCK ) *(to++) = *(from++);
+		while ( (ii++) < DBL_STR ) *to++ = 0;
+
+/* make blkoff forward new block and other things */
+
+// find a mid-block key boundary
+
+		from = bufblk; to = &bufblk[MBLOCK/2]; 
+		while ( from < to ) {
+			from+=4;
+			while ( *(from++) );
+			from += ADSIZE+1;
+			}
+		blkoff = from - bufblk;
+
+	if ( ! strcmp( (const char *) from+4, (const char *) key) ) {
+
+		from +=4;
+
+            from += strlen( (const char *) from ) + ADSIZE+2; /* ZZZ */
+            }
+
+        from += 4;
+
+	to = from;
+
+        strcpy( (char * ) key,  (const char *) from);	/* extract key to be sent up */
+
+        from += strlen( (const char *) from) + 1;	/* advance to data pointer */
+
+        memcpy(&datptr, from, ADSIZE); /* extract data to be sent up */ /* ZZZ */
+
+	blkoff = from - bufblk;
+
+	/* advance past data pointer */ /* ZZZ */
+	from += ADSIZE +1;
+
+        freadx(&block, i, MODIFIED, svPtr);	/* make memory resident */
+
+        memcpy(block, from, MBLOCK);	/* right block - zeroed? */
+
+	memset ( to, 0, DBL_STR - (to - bufblk) ); 
+
+	*(to++) = MMARK;
+	*to = 0;
+
+        blkaddr1 = allocblk(svPtr);		/* allocate new left block */
+        freadx(&block1, blkaddr1, MODIFIED, svPtr);	/* make memory resident */
+        memcpy(block1, bufblk, MBLOCK);	/* left part of block */
+
+        /* fix parent */
+
+        trx--;
+
+        if (trx < 0) goto rootfix;
+
+        i = trace[trx];
+        blkoff = tracep[trx] + 4;
+        goto f1;
+
+rootfix:
+
+        m = allocblk(svPtr);
+        freadx(&block, 0L, MODIFIED, svPtr);
+        memcpy(block, &m, 4);
+        freadx(&block, m, MODIFIED, svPtr);
+
+
+        memcpy(block, &blkaddr1, 4);
+        strcpy( (char * ) &block[4],  (const char *) key);
+        blkoff = 5 + strlen( (const char *) key);
+        memcpy(&block[blkoff], &datptr, ADSIZE); /* ZZZ */
+        block[blkoff + ADSIZE] = 0; /* ZZZ */
+        blkoff += ADSIZE+1; /* ZZZ */
+        memcpy(&block[blkoff], &trace[0], 4);
+        block[blkoff + 4] = MMARK;
+        block[blkoff + 5] = 0;
+        // flush(svPtr);
+        return OK;
+
+        }
+
+    bd[0] = 0;
+    return (0);			/* default failure */
+
+    }
+
+#ifdef DumpBlocks
+
+/* btree block dumper used for debugging */
+
+void pb(@LONG@ bn, unsigned char * block) {
+    int s,ss;
+    @LONG@ x;
+    OFF_T z;
+
+    for(ss=MBLOCK-1; block[ss]==0&&ss>0; ss--);
+
+    printf("\n=== block=%d size=%d =====>\n",bn,ss);
+
+    for (s=0; s<=ss; s++) {
+        memcpy(&x,block,4);
+        printf(" [%d",x);
+        block=block+4;
+
+        if (*block==MMARK) {
+            printf (" MBLOCK END MMARK] ");
+            break;
+            }
+
+        printf(" %s]", block);
+        // memcpy(&z,block+strlen( (const char *) block)+1,ADSIZE);
+        // printf(" %x]",z);
+        block=block+strlen( (const char *) block)+ADSIZE+2;
+        }
+
+    printf("\n===========================================================\n");
+    }
+
+#endif
+
+#endif
+
+
+//ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+//ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+//ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+//ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+//                           SQL SECTION
+//ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+//ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+//ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+//ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+
+#if defined(POSTGRES) || defined(POSTGRESSDB) || defined(MYSQL) || defined(MYSQLDB)
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <mumpsc/defines.h>
+#include <mumpsc/btree.h>
+#include <mumpsc/global.h>
+#include <mumpsc/libmpscpp.h>
+
+char * command_print (char * command) {
+    static char xcmd[1024];
+    int i,j;
+    for (i=0; command[i]; i++ ) {
+        if (command[i] == 1 )
+            xcmd[i] = '#';
+        else xcmd[i] = command[i];
+        }
+    xcmd[i]=0;
+    return xcmd;
+    }
+
+void sigint(int);
+
+int sql(int, struct MSV * svPtr, char *DataSourceName, char *Command, char *, const char *);
+
+#if defined(POSTGRES) || defined(POSTGRESSDB)
+#include <@pginclude@/libpq-fe.h>
+#endif
+
+// global array index length check
+
+void lcheck(char * p, MSV * svPtr) {
+
+    if (strlen(p) > @index_size@) { // index_size filled in by configure
+
+        printf("*** Length of global array index exceeds configuration max.\n");
+        printf("*** In program %s in or near line %d\n\n",
+               svPtr->sqloutput,svPtr->program, svPtr->LineNumber);
+        abort();
+        }
+
+    return; // ok
+    }
+
+// global array data length check
+
+void dcheck(char * p, MSV * svPtr) {
+
+    if (strlen(p) > @datasize@) { // datasize filled in by configure
+
+        printf("*** Length of global array data value exceeds configuration max.\n");
+        printf("*** In program %s in or near line %d\n\n",
+               svPtr->sqloutput,svPtr->program, svPtr->LineNumber);
+        abort();
+        }
+
+    return; // ok
+    }
+
+
+// fix embedded single quote marks
+
+char * embed(char *in) {
+
+    static char tmp[STR_MAX];
+    int i,j=0,k=1;
+    char *p1, *p2 = tmp;
+
+    tmp[0]=0;
+
+    if (in==NULL) return tmp;
+
+    for (p1=in; *p1!=0; p1++)
+        if (*p1=='\'') {
+            k=0;
+            break;
+            }
+
+    if (k) return in; // contains no quotes
+
+    for (p1=in; *p1; p1++) {
+        if (*p1!='\'') *(p2++)=*p1;
+        else {
+            *(p2++) = '\'';
+            *(p2++) = '\'';
+            }
+        }
+
+    *p2 = 0;
+    return tmp;
+    }
+
+//===========================================================================
+//			sql btree common section
+//===========================================================================
+
+int btree (int g, unsigned char key[], unsigned char bd[], struct MSV * svPtr) {
+
+    /* compile with:  gcc rdbms-if.c -lpq */
+
+    static char X01[2] = {1,0};
+    static char XNULL[2] = {0,0};
+    static char XTAB[2] = {'\t',0};
+    static char XCMD[2] = {10,0};
+    int IMAX;
+    char cmd[STR_MAX], *p1, *p2, *p3, *p4;
+    char delim[2] = {1,0};
+    int i;
+
+// The following are the column names for PostgreSQL access.
+// The number of columns is limited to 32. The first one is a dummy
+// as the column names begin with a1
+
+    char *nums[33] = {
+        " ", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10",
+        "a11", "a12", "a13", "a14", "a15", "a16", "a17", "a18", "a19",
+        "a20", "a21", "a22", "a23", "a24", "a25", "a26", "a27", "a28",
+        "a29", "a30", "a31", "a32"
+        };
+
+//-----------------------------
+// make sure connection is open
+//-----------------------------
+
+    sql(OPEN, svPtr, (char *) "@dbname@", (char *) key, (char *) bd, XCMD);
+
+//-----------------------------
+// get table of database tables
+// get table of database tables
+// get table of database tables
+//-----------------------------
+
+    static int tabflag=0;
+    int tabflag1=0;
+    static int tabcount=0;
+    static int colcount[1000]= {0};
+    static char tables[1000][64]= {0};
+
+    if (g == SQLREBUILD ) {
+        tabflag1 = 0;
+        tabcount=0;
+        tabflag = 0;
+        for (int i=0; i<1000; i++) {
+            colcount[i] = 0;
+            tables[i][0] = 0;
+            }
+        svPtr->Table[0]=0;
+        svPtr->TabSize=0;
+        IMAX=0;
+        return 1;
+        }
+
+//-------------------------------------------------------------------------------
+// MYSQL MYSQL MYSQL
+// MYSQL MYSQL MYSQL
+// MYSQL MYSQL MYSQL
+//-------------------------------------------------------------------------------
+
+#if defined(MYSQL) || defined(MYSQLDB)
+
+tabBuild:
+
+    if (tabflag==0 ) {
+        char cmd[512];
+        char tmp[64];
+        char cur_file[512];
+        char line[1024];
+        char * p1;
+        int j;
+        char tab[2]= {9,0}; // tab char in string
+
+//	The following MySQL command entered from a root MySQL account
+//	makes database updates much faster but at the expense of
+//	integrity in the case of a system failure:
+
+//	set global innodb_flush_log_at_trx_commit=0;
+
+        tabcount=0;
+
+        // get table names
+
+        strcpy(cmd,"show tables from mumps;");
+
+        strcpy(cur_file,svPtr->sqloutput); // current output file name saved
+        sprintf(svPtr->sqloutput,"%d.tables",getpid());
+
+        j=sql(99, svPtr, (char *) "@dbname@", cmd, (char *) bd, XCMD);
+
+        if (j==0) {
+            tabcount=0;
+            strcpy(svPtr->sqloutput,cur_file); // output file name restored
+            tabflag=1;
+            tabflag1=1;
+            }
+
+        else {
+
+            FILE *p=fopen(svPtr->sqloutput,"r");
+
+            if (p==NULL) {
+                printf("Error opening %s in program %s at line %d\n\n",
+                       svPtr->sqloutput,svPtr->program, svPtr->LineNumber);
+                abort();
+                }
+
+            for (tabcount=0; tabcount<1000; tabcount++) {
+                if (tabcount>=1000) {
+                    printf("\n*** Too many DB tables in program %s\n",
+                           svPtr->program);
+                    abort();
+                    }
+
+                if (fgets(tables[tabcount],64,p)==NULL) break;
+
+                tables[tabcount][strlen(tables[tabcount])-1]=0;
+                }
+
+            fclose(p);
+
+            for (int i=0; i<tabcount; i++) {
+
+                // get nbr of cols for each table
+
+                sprintf(cmd,"show columns from %s;",tables[i]);
+                sql(99, svPtr, (char *) "@dbname@", cmd, (char *) bd, XCMD);
+                p=fopen(svPtr->sqloutput,"r");
+
+                for (j=0; fgets(tmp,512,p)!=NULL; j++);
+
+                colcount[i]=j;
+                sprintf(cmd,"%%globals%c%s%c",1,tables[i],1);
+                sprintf(tmp,"%d",colcount[i]);
+                SymPut(cmd,tmp);
+                fclose(p);
+                }
+
+            remove(svPtr->sqloutput);
+            strcpy(svPtr->sqloutput,cur_file);
+            tabflag=1;
+            tabflag1=1;
+            }
+        }
+
+#endif
+
+    if (g==NEXT) g=XNEXT;
+
+    if (g==SQLCMD) {
+        return sql(GLOBAL, svPtr, (char *) "@dbname@", (char *) key, (char *) bd, XCMD);
+        }
+
+//-------------------------------------------------------------------------------
+// POSTGRESQL POSTGRESQL POSTGRESQL
+// POSTGRESQL POSTGRESQL POSTGRESQL
+// POSTGRESQL POSTGRESQL POSTGRESQL
+//-------------------------------------------------------------------------------
+
+#if defined(POSTGRES) || defined(POSTGRESSDB)
+
+tabBuild:
+
+    if (tabflag==0 ) {
+        char cmd[512];
+        char tmp[64];
+        char cur_file[512];
+        char line[1024];
+        char * p1;
+        char tab[2]= {9,0}; // tab char in string
+        tabcount=0;
+
+        // obtain information on table names and number of cols
+
+        strcpy(cmd,"select a.table_name, count(*) from information_schema.tables as a, "
+               "information_schema.columns as b where a.table_catalog='mumps' and "
+               "a.table_name=b.table_name and a.table_schema = 'public' group by a.table_name;");
+
+        strcpy(cur_file,svPtr->sqloutput);
+        sprintf(svPtr->sqloutput,"%d.tables",getpid());
+
+        int j=sql(99, svPtr, (char *) "@dbname@", cmd, (char *) bd, XCMD);
+
+        if (j==0) {
+            tabcount=0;
+            strcpy(svPtr->sqloutput,cur_file); // restore name of current output file
+            tabflag=1;
+            tabflag1=1;
+            }
+
+        else {
+
+            FILE *p=fopen(svPtr->sqloutput,"r");
+
+            if (p==NULL) {
+                printf("Error opening sqlTables\n\n");
+                abort();
+                }
+
+            for (tabcount=0; tabcount<1000; tabcount++) {
+                if (tabcount>=1000) {
+                    printf("\n*** Too many DB tables.\n");
+                    exit(1);
+                    }
+
+                if (fgets(line,1024,p)==NULL) break;
+
+                line[strlen(line)-1]=0; // new line character
+
+                p1=strtok(line,tab);
+
+                if (p1==NULL) {
+                    printf("*** SQL tables list load error 1 in program %s\n\n",
+                           svPtr->program);
+                    abort();
+                    }
+
+                strcpy(tables[tabcount],p1);
+
+                p1=strtok(NULL,tab);
+
+                if (p1==NULL) {
+                    printf("*** SQL tables list load error 2 in program %s\n\n",
+                           svPtr->program);
+                    abort();
+                    }
+
+                sscanf(p1,"%d",&colcount[tabcount]); // column count this table
+
+                sprintf(cmd,"%%globals%c%s%c",1,tables[tabcount],1);  // place it in mumps memory
+                sprintf(tmp,"%d",colcount[tabcount]);
+                SymPut(cmd,tmp);
+                }
+
+            fclose(p);
+            remove(svPtr->sqloutput);
+            strcpy(svPtr->sqloutput,cur_file); // restore name of output file
+            tabflag=1;
+            tabflag1=1;
+            }
+        }
+
+#endif
+
+//------------------------------------------------------------------------
+//--------- common section -----------------------------------------------
+//------------------------------------------------------------------------
+
+    if (g != OPEN && g != CLOSE) {
+
+        char cmd[512];
+        for (i = 0; key[i] != delim[0] && key[i] != 0; i++) svPtr->Table[i]=key[i];
+        svPtr->Table[i]=0;
+
+//--------------------
+// Look up table name
+// MySQL honors case, PostgreSQL does not
+//--------------------
+
+        for (i=0; i<tabcount; i++)  // lookup global/table name
+
+#if defined(MYSQL) || defined(MYSQLDB)
+            if (strcmp(svPtr->Table,tables[i]) ==0) {
+#endif
+
+#if defined(POSTGRES) || defined(POSTGRESSDB)
+                if (strcasecmp(svPtr->Table,tables[i]) ==0) {
+#endif
+
+                    IMAX=colcount[i];
+                    svPtr->TabSize=IMAX;
+                    goto tab_found;
+                    }
+
+//--------------------
+// TABLE NOT FOUND up table name
+//--------------------
+
+                if (i==tabcount) {
+                    if (tabcount>=1000) {
+                        printf("\n*** Too many DB tables.\n");
+                        exit(1);
+                        }
+
+                    if (tabflag1) { // we tried looking it up again but no luck
+                        sprintf(cmd,"sql/f %s 11", svPtr->Table);
+                        struct MSV * svtmp = AllocSV();
+                        i=Interpret(cmd,svtmp); // create the table with default nbr of cols
+                        free(svtmp);
+                        }
+
+                    tabflag=0;
+                    goto tabBuild; // try looking it up again
+                    }
+                }
+
+tab_found:  // DB table identified
+
+//------------------------------------------------------------------------
+//
+//			RETRIEVE
+//
+//------------------------------------------------------------------------
+
+        if (g==RETRIEVE)  {
+            char col[64];
+            char delim[2] = {1,0};
+            char save[STR_MAX];
+            int i,tok=0;
+
+            for (p1 = (char *) key; *p1; p1++) if (*p1 == 1) tok++; // count indices
+
+            if (tok>IMAX) {
+                printf("*** 001 Maximum number if global array indices exceeded\n"
+                       "in or near line %d key=%s\n",svPtr->LineNumber,key);
+                sigint(100);
+                }
+
+            strcpy(save,(const char *)key);
+            p1=strtok( (char *) key, delim);
+            strcpy(cmd, "select ");
+            strcat(cmd,nums[IMAX]);
+            strcat(cmd," from ");
+            strcat(cmd,svPtr->Table);
+            strcat(cmd," where a1=\'");
+            p1 = strtok(NULL,delim);
+            if (p1 != NULL ) {
+                lcheck(p1,svPtr);
+                strcat(cmd,embed(p1));
+                strcat(cmd,"\' ");
+                }
+            else strcat( cmd, "\' ");  // no indices to global provided
+
+            for (i=2; i<IMAX; i++) {
+
+                if ( (p1 = strtok(NULL,delim)) == NULL) break;
+
+                lcheck(p1,svPtr);
+                strcat(cmd," and ");
+                strcat(cmd,nums[i]);
+                strcat(cmd,"=\'");
+                strcat(cmd,embed(p1));
+                strcat(cmd,"\'");
+                }
+
+            for (; i<IMAX; i++) {
+
+                strcat(cmd," and ");
+                strcat(cmd,nums[i]);
+                strcat(cmd,"=\'\'");
+                }
+
+            strcat(cmd," limit 1;");
+            bd[0] = 0; // empty string
+            i=sql(GLOBAL, svPtr, (char *) "@dbname@",cmd, (char *) bd, XTAB );
+            strcpy((char *)key,save);
+            return i;
+            }
+
+//------------------------------------------------------------------------
+//
+// 		STORE
+//
+//------------------------------------------------------------------------
+
+        if (g==STORE) {
+
+            char delim[2] = {1,0};
+            int i,j,tok=0;
+            char save[STR_MAX];
+
+            for (p1 = (char *)key; *p1; p1++) if (*p1 == 1) tok++;
+
+            if (tok>IMAX) {
+                printf("*** 002 Maximum number if global array indices exceeded\n"
+                       "in or near line %d key=%s count=%d max=%d program=%s\n",
+                       svPtr->LineNumber,key,tok,IMAX,svPtr->program);
+                sigint(100);
+                }
+
+            strcpy(save,(const char *) key);
+
+// delete any previous tuple
+
+            strcpy(cmd,"delete from ");
+            strcat(cmd, (char *) svPtr->Table);
+            strcat(cmd," where a1=\'");
+
+            p1=strtok( (char *) key,delim);
+            lcheck(p1,svPtr);
+            p1=strtok(NULL,delim);
+            strcat(cmd,embed(p1));
+            strcat(cmd,"\'");
+
+            for (i=1; i<IMAX; i++) {
+                p1=strtok(NULL,delim);
+
+                if (p1==NULL) break;
+
+                strcat(cmd," and ");
+                strcat(cmd,nums[i+1]);
+                strcat(cmd,"=\'");
+                lcheck(p1,svPtr);
+                strcat(cmd,embed(p1));
+                strcat(cmd,"\'");
+                }
+
+            for (; i<IMAX-1; i++) {
+                strcat(cmd," and ");
+                strcat(cmd,nums[i+1]);
+
+                if (i<IMAX-2) strcat(cmd,"=\'\'");
+                else strcat(cmd,"=\'\';");
+                }
+
+            sql(GLOBAL, svPtr, (char *) "@dbname@",cmd, (char *) bd, " "); // delete
+
+            strcpy(( char *) key,save);
+
+
+            p1=strtok( (char *) key,delim);
+
+            sprintf(cmd, "insert into %s values (", svPtr->Table,embed(p1));
+
+            j = strlen(cmd);
+            p3 = &cmd[j];
+
+            for (i=1; i<IMAX; i++) {
+
+                p1=strtok(NULL,delim);
+
+                if (p1==NULL) break;
+
+                lcheck(p1,svPtr);
+                p2 = embed(p1);
+                *(p3++)='\'';
+
+                while ( *p2 != 0 ) *(p3++) = *(p2++);
+
+                *(p3++) = '\'';
+                *(p3++) = ',';
+                *(p3++) = ' ';
+                *p3 = 0;
+
+                }
+
+            for (; i<IMAX; i++) { // off count but final val in bd
+
+                *(p3++)='\'';
+                *(p3++)='\'';
+                *(p3++)=',';
+                *(p3++)=' ';
+
+                }
+
+            *(p3)=0;
+
+            dcheck((char *) bd,svPtr);
+            p2 = embed((char *)bd);
+            *(p3++)='\'';
+
+            while ( *p2 != 0 ) *(p3++) = *(p2++);
+
+            *(p3++) = '\'';
+            *(p3++) = ' ';
+            *(p3++) = ')';
+            *(p3++) = ';';
+            *p3 = 0;
+
+            i=sql(GLOBAL, svPtr, (char *) "@dbname@",cmd, (char *) bd, " ");
+
+            if (i==0) {
+                printf("\n*** SQL error reported during assignment "
+                       "to global array:\n*** %s\nCommand: %s\n",
+                       svPtr->pgsql_msg, cmd);
+                abort();
+                }
+
+            return 1;
+            }
+
+//------------------------------------------------------------------------
+//
+// 			NEXT used by $query
+//
+//------------------------------------------------------------------------
+
+        if ( g==XNEXT ) {
+            char cmd[STR_MAX];
+            char col[64];
+            int i;
+            char keybak[STR_MAX];
+            int tokens=0;
+            char delim[2] = {1,0};
+            char tmp[STR_MAX],tmp1[STR_MAX];
+
+            for (p1 = (char *)key; *p1; p1++) if (*p1 == 1) tokens++;
+
+            if (tokens>IMAX) {
+                printf("*** 003 Maximum number if global array indices exceeded\n"
+                       "in or near line %d key=%s\n",svPtr->LineNumber,key);
+                sigint(100);
+                }
+
+            strcpy(cmd,"select a1");
+
+            for (i=1; i<IMAX-1; i++) {
+                sprintf(tmp,",a%d",i+1);
+                strcat(cmd,tmp);
+                }
+
+            sprintf(tmp1," from %s where (a1", svPtr->Table);
+
+            for (i=1; i<IMAX-1; i++) {
+                sprintf(tmp,",a%d",i+1);
+                strcat(tmp1,tmp);
+                }
+
+            strcat(tmp1,") > (");
+
+            strcat(cmd,tmp1);
+
+            p1=strtok((char *)key,delim);
+            p1=strtok(NULL,delim); // get another
+
+            for (i=1; i<IMAX-1; i++) {
+
+                if (p1==NULL) strcat(cmd,"\'\',");
+                else {
+                    strcat(cmd,"\'");
+                    lcheck(p1,svPtr);
+                    strcat(cmd,embed(p1));
+                    strcat(cmd,"\',");
+                    p1=strtok(NULL,delim); // get another
+                    }
+                }
+
+            if (p1==NULL) {
+                strcat(cmd,"\'\'");
+                }
+
+            else {
+                strcat(cmd,"\'");
+                lcheck(p1,svPtr);
+                strcat(cmd,embed(p1));
+                strcat(cmd,"\'");
+                }
+
+            strcat(cmd,") order by a1");
+
+            for (i=1; i<IMAX-1; i++) {
+                sprintf(tmp,",a%d",i+1);
+                strcat(cmd,tmp);
+                }
+
+            strcat(cmd," limit 1;");
+
+            strcpy((char *) key, keybak);
+
+            i=sql(GLOBAL, svPtr, (char *) "@dbname@", cmd, (char *) bd, X01 );
+
+            return i;
+
+            }
+
+//------------------------------------------------------------------------
+//
+// 			GKILL
+//
+//------------------------------------------------------------------------
+
+        if ( g==GKILL ) {
+            char cmd[STR_MAX];
+            char col[64];
+            int i;
+            char keybak[STR_MAX];
+            char tmp[64];
+            int tokens=0;
+
+            for (p1 = (char *)key; *p1; p1++) if (*p1 == 1) tokens++;
+
+            if (tokens>IMAX) {
+                printf("*** 003 Maximum number if global array indices exceeded\n"
+                       "in or near line %d key=%s\n",svPtr->LineNumber,key);
+                sigint(100);
+                }
+
+            strcpy(keybak,(char *) key);
+            sprintf(cmd, "delete from %s ", svPtr->Table);
+
+            if ( tokens == 1) strcat(cmd,";");
+
+            else {
+
+                strcat(cmd,"where ");
+                p3=strtok( (char *) key,delim); // array name
+
+                for (i=1; i<IMAX; i++) {
+                    p3=strtok(NULL,delim);
+
+                    if (p3==NULL) break;
+
+                    if (i !=1) strcat(cmd," and ");
+
+                    strcat(cmd,nums[i]);
+                    strcat(cmd,"=\'");
+                    lcheck(p3,svPtr);
+                    strcat(cmd,embed(p3));
+                    strcat(cmd,"\' ");
+                    }
+
+                strcat(cmd,";");
+                }
+
+            i=sql(GLOBAL, svPtr, (char *) "@dbname@",cmd, (char *) bd, X01 );
+
+            return i;
+            }
+
+// ..................... ORDER
+// ..................... ORDER
+// ..................... ORDER
+
+        if (g==ORDERNEXT || g==ORDERPREV) {
+
+            char cmd[STR_MAX];
+            char col[64];
+            char delim[2] = {1,0};
+            int i,j,w=0;
+
+            j=0;
+
+            for (unsigned char *p=key; *p; p++) if ( *p == 1 ) j++;
+
+            j--;
+
+// arg count of 1 impossible
+
+            if (j>IMAX) {
+                return 0; // permits $data to work at this level
+                printf("*** 004 Maximum number if global array indices exceeded\n"
+                       "in or near line %d key=%s\n",svPtr->LineNumber,key);
+                sigint(100);
+                }
+
+            strcpy(cmd,"select ");
+            strcat(cmd,nums[j]);
+            strcat(cmd," from ");
+            strcat(cmd,(char *) svPtr->Table);
+            strcat(cmd," ");
+
+            p3=strtok( (char *) key,delim); // array name
+            p3=strtok(NULL,delim);
+
+
+            for (i=1; i<j; i++) { // specified indices
+                if (p3==NULL) break;
+
+                if (w) strcat(cmd," and ");
+                else {
+                    w=1;
+                    strcat(cmd," where ");
+                    }
+
+                strcat(cmd,nums[i]);
+                strcat(cmd,"=\'");
+                lcheck(p3,svPtr);
+                strcat(cmd,embed(p3));
+                strcat(cmd,"\' ");
+                p3=strtok(NULL,delim);
+                }
+
+            if (g==ORDERNEXT) {
+                if (p3 != NULL || 1) {
+                    if (!w) strcat(cmd," where ");
+                    else strcat(cmd," and ");
+
+                    strcat(cmd,nums[j]);
+                    strcat(cmd,">\'");
+
+                    if (p3 != NULL) {
+                        lcheck(p3,svPtr);
+                        strcat(cmd,embed(p3));
+                        }
+
+                    strcat(cmd,"\' ");
+                    }
+                }
+            else { // ORDERPREV
+                if (p3 != NULL) {
+                    if (!w) strcat(cmd," where ");
+                    else strcat(cmd," and ");
+
+                    strcat(cmd,nums[i]);
+                    strcat(cmd,"<\'");
+
+                    if (p3 != NULL) {
+                        lcheck(p3,svPtr);
+                        strcat(cmd,embed(p3));
+                        }
+
+                    strcat(cmd,"\' ");
+                    }
+                }
+
+            char order[64];
+
+            if (j==1) {
+                if (g==ORDERNEXT) strcat(cmd," order by a1 asc limit 1;");
+                else strcat(cmd," order by a1 desc limit 1;");
+                }
+
+            else if (g==ORDERNEXT) {
+                strcat(cmd," order by ");
+                strcat(cmd,nums[j]);
+                strcat(cmd," asc limit 1;");
+                }
+
+            else {
+                strcat(cmd," order by ");
+                strcat(cmd,nums[j]);
+                strcat(cmd," desc limit 1;");
+                }
+
+            i=sql(GLOBAL, svPtr, (char *) "@dbname@",cmd, (char *) bd, XNULL );
+
+            if (i==0) bd[0]=0;
+
+            return i;
+            }
+
+// ..................... CLOSE
+// ..................... CLOSE
+// ..................... CLOSE
+
+        if (g==CLOSE) {
+            sql(CLOSE, svPtr, (char *) "",(char *) "",(char *) "", XTAB);
+            return 1;
+            }
+
+        return 1;
+        }
+
+#if defined(POSTGRES) || defined(POSTGRESSDB)
+
+//ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp
+//                        POSTGRESQL SQL INTERFACE
+//ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp
+
+    int sql(int CODE, struct MSV *svPtr, char *DataSourceName, char *Command, char *rslt, const char *TOK) {
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// PostgreSQL Interface Section
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+        static int open=0;
+
+        int max;
+
+        static PGconn *p1;
+        static PGresult *p2;
+        int i, j, nt = 0, nf = 0;
+        char tmp[256];
+
+        strcpy(svPtr->Col_Names,"");
+
+//-----------------
+// close connection
+//-----------------
+
+        if (CODE == CLOSE) {
+            if (!open) return 1;
+
+            PQfinish(p1);
+            svPtr->ConOpen=0;
+            open=0;
+            return 1;
+            }
+
+        if (CODE == OPEN ) {
+            if (open) return 1; // Connection already open
+            }
+
+        if (!open) {  // default open
+
+            p1 = PQconnectdb(svPtr->Connection);
+
+            if (p1 == NULL) {
+                printf("*** Null connection to server "
+                       "in or near line %d\n",svPtr->LineNumber);
+                sigint(100);
+                }
+
+            if (PQstatus(p1)==CONNECTION_OK) {
+                open=1;
+                svPtr-> ConOpen=1;
+                strcpy(svPtr->pgsql_msg,"ok");
+                }
+            else {
+                open=0;
+                printf("*** Connection to database server failed "
+                       "in or near line %d\n",svPtr->LineNumber);
+                printf("Error msg:\n%s\n",PQerrorMessage(p1));
+                printf("Connection string=%s\n",svPtr->Connection);
+                exit(99);
+                sigint(100);
+                }
+
+            svPtr->tpx=open;
+
+            if (CODE == OPEN ) return 1;
+            } //default open
+
+        if (strlen(Command)==0) return open;
+
+        p2 = PQexec(p1, Command);
+
+        nt = PQntuples(p2);
+
+        if (p2 == NULL) {
+            strcpy(svPtr->pgsql_msg,"Postgres NULL returned - reason unknown");
+            return 0;
+            }
+
+        int rstat = PQresultStatus(p2);
+
+        if (rstat == PGRES_COMMAND_OK) {
+            PQclear(p2);
+            strcpy(svPtr->pgsql_msg,"ok");
+            return 1; // no tuples
+            }
+
+        if (rstat != PGRES_COMMAND_OK && rstat != PGRES_TUPLES_OK) {
+            strcpy(svPtr->pgsql_msg,PQerrorMessage(p1));
+            PQclear(p2);
+            svPtr->tpx=0;
+            return 0;
+            }
+
+        if (CODE ==GLOBAL) {  // global array access reference
+
+            if (PQresultStatus(p2) == PGRES_TUPLES_OK) {
+
+                nt = PQntuples(p2);
+                nf = PQnfields(p2);
+
+                if (nt==0) {
+                    strcpy(rslt,"");
+                    svPtr->grsltsx=0;
+                    PQclear(p2);
+                    return 0;
+                    }
+
+                for (i = 0; i < nt; i++) {
+                    char *item;
+
+                    for (j = 0; j < nf; j++) {
+                        item = PQgetvalue(p2, i, j);
+                        strcpy(rslt,item);
+                        strcpy(svPtr->grslts[j], rslt );
+                        }
+                    }
+                }
+
+            svPtr->grsltsx=nf;
+            PQclear(p2);
+            return 1;
+            }
+
+        if (1) {  // global array access reference
+
+            if (PQresultStatus(p2) == PGRES_TUPLES_OK) {
+
+                nt = PQntuples(p2);
+                nf = PQnfields(p2);
+
+                FILE * out = fopen (svPtr->sqloutput,"w");
+
+                if (nt==0) {
+                    strcpy(rslt,"");
+                    svPtr->grsltsx=0;
+                    PQclear(p2);
+                    fclose(out);
+                    return 0;
+                    }
+
+                for (i = 0; i < nt; i++) {
+                    char *item;
+                    int flg = 0;
+
+                    for (j = 0; j < nf; j++) {
+                        item = PQgetvalue(p2, i, j);
+
+                        if (flg) fprintf(out,"\t%s",item);
+                        else {
+                            fprintf(out,"%s",item);
+                            flg=1;
+                            }
+                        }
+
+                    fprintf(out,"\n");
+                    }
+
+                fclose (out);
+                }
+
+            svPtr->grsltsx=nf;
+            PQclear(p2);
+            return 1;
+            }
+
+
+        PQclear(p2);
+        return 1;
+
+        }
+#endif
+
+//mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm
+//                           MYSQL SECTION
+//mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm
+
+#if defined(MYSQL) || defined(MYSQLDB)
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <mumpsc/defines.h>
+#include <mumpsc/btree.h>
+#include <mumpsc/global.h>
+#include <my_global.h>
+#include <mysql.h>
+
+    void sigint(int);
+    int sql(int, struct MSV * svPtr, char *DataSourceName, char *Command, char *, const char *);
+
+
+    int sql(int CODE, struct MSV *svPtr, char *DataSourceName, char *Command, char *rslt, const char *TOK) {
+
+        static int open=0;
+
+        MYSQL_RES *r1;
+        MYSQL_ROW row;
+        static MYSQL *con = mysql_init(NULL);
+
+        int max;
+        int i, j, nt = 0, nf = 0;
+        char tmp[256];
+
+// printf("Command: %d %s\n", CODE, command_print(Command));
+
+        strcpy(svPtr->Col_Names,"");
+
+//-----------------
+// close connection
+//-----------------
+
+        if (CODE == CLOSE) {
+
+            if (!open) return 1;
+
+            mysql_close(con);
+            con=NULL;
+            svPtr->ConOpen=0;
+            open=0;
+            return 1;
+            }
+
+        if (CODE == OPEN ) {
+            if (open) return 1; // Connection already open
+            }
+
+        if (!open) {  // default open
+
+            char host[128]="@host@";
+            char user[128]="@user@";
+            char passwd[128]="@passwd@";
+            char dbname[128]="@dbname@";
+            unsigned int port=@port@;
+            char socket[128]="@socket@";
+            char *p1,*p2;
+
+            if (con == NULL) con = mysql_init(NULL);
+
+            p1=strstr(svPtr->Connection,"host=");
+
+            if (p1 != NULL) {
+                p1=p1+5;
+                p2=host;
+
+                while( *p1 && *p1 != ' ') *(p2++) = *(p1++);
+
+                *p2=0;
+                }
+
+            p1=strstr(svPtr->Connection,"user=");
+
+            if (p1 != NULL) {
+                p1=p1+5;
+                p2=user;
+
+                while( *p1 && *p1 != ' ') *(p2++) = *(p1++);
+
+                *p2=0;
+                }
+
+            p1=strstr(svPtr->Connection,"passwd=");
+
+            if (p1 != NULL) {
+                p1=p1+7;
+                p2=passwd;
+
+                while( *p1 && *p1 != ' ') *(p2++) = *(p1++);
+
+                *p2=0;
+                }
+
+            p1=strstr(svPtr->Connection,"dbname=");
+
+            if (p1 != NULL) {
+                p1=p1+7;
+                p2=dbname;
+
+                while( *p1 && *p1 != ' ') *(p2++) = *(p1++);
+
+                *p2=0;
+                }
+
+            p1=strstr(svPtr->Connection,"port=");
+
+            if (p1 != NULL) {
+                p1=p1+5;
+                char tmp[32];
+                p2=tmp;
+
+                while( *p1 && *p1 != ' ') *(p2++) = *(p1++);
+
+                *p2=0;
+                port=atoi(tmp);
+                }
+
+            p1=strstr(svPtr->Connection,"socket=");
+
+            if (p1 != NULL) {
+                p1=p1+7;
+                p2=socket;
+
+                while( *p1 && *p1 != ' ') *(p2++) = *(p1++);
+
+                *p2=0;
+                }
+
+            if (mysql_real_connect(con,host,user,
+                                   strlen(passwd)?passwd:NULL,dbname,port,
+                                   strlen(socket)?socket:NULL,0) == NULL ) {
+
+                printf("*** Null connection to server %s\n"
+                       "in or near line %d program %s\n",mysql_error(con),svPtr->LineNumber,svPtr->program);
+                mysql_close(con);
+                sigint(100);
+                }
+
+            else  {
+                open=1;
+                svPtr-> ConOpen=1;
+                strcpy(svPtr->pgsql_msg,"ok");
+                }
+
+            svPtr->tpx=open;
+
+            if (CODE == OPEN ) return 1;
+            } //default open
+
+        if (strlen(Command)==0) return open;
+
+        if (mysql_query(con, Command)) {
+
+            strcpy(svPtr->pgsql_msg, mysql_error(con) );
+            return 0;
+
+            printf("\n*** MYSQL Query error in or near line %d in program %s\nCommand: %s\n%s\n\n",
+                   svPtr->LineNumber, svPtr->program, Command, mysql_error(con));
+            mysql_close(con);
+            abort();
+            }
+
+        r1 = mysql_store_result(con);
+
+        if (r1 == NULL ) {
+            mysql_free_result(r1);
+            return 1; // not all comands return a result
+            }
+
+        nt = mysql_num_rows(r1);
+        nf = mysql_num_fields(r1);
+
+// general sql command sent
+
+        if (CODE ==GLOBAL) {  // global array access reference
+
+            if (nt==0) {
+                strcpy(rslt,"");
+                svPtr->grsltsx=0;
+                strcpy(svPtr->pgsql_msg,"ok");
+                mysql_free_result(r1);
+                return 0;
+                }
+
+            while ( row = mysql_fetch_row(r1) ) {
+                for (int i=0; i<nf; i++) {
+                    if (strlen(row[i])) {
+                        strcpy(rslt,row[i]); // return last column
+                        strcpy(svPtr->grslts[i], row[i] );
+                        }
+                    else strcpy(svPtr->grslts[i],"");
+                    }
+                }
+
+            svPtr->grsltsx=nf;
+            mysql_free_result(r1);
+            return 1;
+            }
+
+        if (nt == 0) {
+            mysql_free_result(r1);
+            strcpy(svPtr->pgsql_msg,"ok");
+            strcpy(rslt,"");
+            return 0; // no tuples
+            }
+
+        FILE * out = fopen (svPtr->sqloutput,"w");
+
+        while ( row = mysql_fetch_row(r1) ) {
+            for (int i=0; i<nf-1; i++) {
+                fprintf(out,"%s\t",row[i]);
+                }
+
+            fprintf(out,"%s\n",row[nf-1]);
+            }
+
+        mysql_free_result(r1);
+        fclose(out);
+        return 1;
+        }
+#endif
+#endif

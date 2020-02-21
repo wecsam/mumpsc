@@ -1,0 +1,431 @@
+test_code#test_name#low#high
+1#5-HIAA#6#76
+2#5-Hydroxyindoleacetic Acid#8#83
+3#5-Hydroxytryptamine#2#55
+4#17-Hydroxyprogesterone#37#84
+5#18-Hydroxycorticosterone#20#86
+6#25-Hydroxy Vitamin D#38#52
+7#Haemophilus ducreyi#32#62
+8#Haldol#31#62
+9#Haloperidol#12#78
+10#Halothane (Anaesthetic)#17#56
+11#Ham Test#25#60
+12#Hantavirus Serology#34#58
+13#Haptoglobin#30#52
+14#HBeAg (Hepatitis Be Antigen)#14#73
+15#HBsAg#25#89
+16#HCG#20#71
+17#HDL Cholesterol#38#50
+18#Heart Antibody#46#60
+19#Heavy Metals#38#53
+20#Heinz Bodies Stain#26#88
+21#Helicobacter pylori Antigen#21#74
+22#Helicobacter pylori Breath Test#30#66
+23#Helper/Suppressor Lymphocyte#47#72
+24#Hemagglutinins#18#79
+25#Hematocrit#2#88
+26#Hemochromotosis, Hereditary#18#69
+27#Hemoglobin#38#62
+28#Hemoglobin and Hematocrit#48#80
+29#Hemoglobin A1c#6#52
+30#Hemoglobin A2, Quantitative#44#81
+31#Hemoglobin DNA Analysis#11#66
+32#Hemoglobin Electrophoresis#13#61
+33#Hemoglobin F#48#61
+34#Hemoglobin F, Kleihauer Stain#43#88
+35#Hemoglobin H Stain (H bodies)#45#60
+36#Hemoglobin S#46#56
+37#Hemoglobinopathy Screen#34#79
+38#Hemosiderin#22#73
+39#Hemostasis Study#43#53
+40#Heparin Assay#43#55
+41#Heparin Induced Thrombocytopenia, Antibody#31#51
+42#Hepatitis A Antigen, IgM Antibody (Anti-HAV IgM)#27#59
+43#Hepatitis A Antigen, Total Antibody (Anti-HAV Total)#15#55
+44#Hepatitis A Immunity#40#62
+45#Hepatitis B Core Antigen Antibody (Anti-HBc)#39#56
+46#Hepatitis B Core Antigen, IgM Antibody (Anti-HBc IgM)#3#82
+47#Hepatitis B DNA by PCR#4#58
+48#Hepatitis B Immunity#4#64
+49#Hepatitis B Surface Antigen#30#67
+50#Bilirubin, Qualitative - Urine#43#85
+51#Bioavailable Testosterone#17#51
+52#Biochemical Genetic Tests#43#64
+53#Biochemical Screen#22#58
+54#Biotinidase#37#75
+55#Bismuth#11#52
+56#BK Virus#13#62
+57#Blastomyces Culture#43#50
+58#Blastomyces Serology#13#51
+59#Bleeding Time#17#55
+60#Blood Cultures#33#86
+61#Blood Gas - Arterial#43#58
+62#Blood Gas - Arterial Community#8#59
+63#Blood Gas - Capillary#7#74
+64#Blood Gas - Cord Blood#4#79
+65#Blood Gas - Fetal Scalp#12#79
+66#Blood Gas - Venous#14#71
+67#Blood Group/Type#42#59
+68#Blood Parasites#35#55
+69#Blood Smear#27#75
+70#BNP#32#70
+71#Bone Marrow Examination#7#87
+72#Bordetella pertussis by PCR#32#73
+73#Borrelia burgdorferi#39#88
+74#Breast CA1 & CA2#14#76
+75#Breast Micrometastases#5#79
+76#Bromide#12#89
+77#Methsuximide#37#53
+78#Methylene Tetrahydrofolate Reductase Gene Polymorphism#48#56
+79#Methylhydrate#37#74
+80#Methylmalonic Acid - Blood#35#71
+81#Methylmalonic Acid - Urine#5#61
+82#Microalbumin#33#78
+83#Microfilaria#13#80
+84#Minocycline, Quantitative - Blood#15#80
+85#Mitochondrial Antibodies#47#89
+86#Mitochondrial Studies#31#77
+87#Mitogen Stimulation Assay#47#85
+88#Mixing Study (Inhibitor Screen)#10#76
+89#MMF#15#76
+90#Mogadon Level#43#71
+91#Molecular Diagnostic Tests#27#77
+92#Molybdenum#20#86
+93#Monoclonal Antibodies#32#70
+94#Monotest#13#52
+95#MPA#27#80
+96#MPO Antibody#23#52
+97#MRSA Screen#4#68
+98#MSAFP (Maternal Serum Alpha-Fetoprotein)#32#57
+99#MTHFR Gene Polymorphism#31#89
+100#MTX#9#58
+101#Mucopolysaccharides#49#50
+102#Multimer Analysis#35#86
+103#T3, Total#8#87
+104#T4, Free#32#63
+105#T4, Free by Equilibrium Dialysis#23#77
+106#T4/T8 (All Requests)#44#80
+107#Tacrolimus#37#56
+108#Tambocor#17#79
+109#Tay-Sachs Disease Screen Test#37#72
+110#TB#41#74
+111#TBG#34#57
+112#T-cell HLA Antibody#48#88
+113#Tegretol#27#51
+114#Teichoic Antibodies#5#68
+115#Testosterone, Bioavailable#32#85
+116#Testosterone, Free#39#81
+117#Testosterone, Total#7#56
+118#Tetanus Serology#27#65
+119#Thalassemia, Molecular Testing#24#52
+120#Thalassemia, Screen#41#69
+121#Thallium#41#65
+122#Theophylline#2#78
+123#Thiamine#2#71
+124#Thiazide#48#51
+125#Thiocyanate#5#51
+126#Thiopental#5#89
+127#Thiopurine Methyl Transferase#10#85
+128#Thioridazine, Quantitative - Blood#30#68
+129#Thrombophilia Screen#38#85
+130#Thyroglobulin#48#71
+131#Thyroglobulin Antibodies#2#57
+132#Thyroid Antibodies#2#60
+133#Thyroid Autoantibodies#16#82
+134#Thyroid I 131 3 h Uptake#27#52
+135#Thyroid Releasing Hormone (TRH) Stimulation Test#44#80
+136#Thyroid Stimulating Hormone#43#65
+137#Thyroid Stimulating Hormone Receptor Antibody#6#57
+138#Thyroid Stimulating Immunoglobulin#16#70
+139#Thyrotropin Receptor Antibodies#20#56
+140#Thyroxine Binding Globulin#1#65
+141#TIBC (Total Iron Binding Capacity)#7#88
+142#Tissue Antibodies#17#50
+143#Tissue Biopsy#15#87
+144#Tissue Biopsy for Immunofluorescence#8#64
+145#Tissue Parasites#34#88
+146#Tissue Transglutaminase Antibody (IgA)#25#57
+147#TNT#46#89
+148#Tobramycin - Blood#49#54
+149#Tobramycin - CSF#11#76
+150#Tocopherol#6#75
+151#TofranilWater Deprivation Test#49#69
+152#West Nile Virus Testing#43#65
+153#Western Blot#49#79
+154#White Blood Count (WBC) / Differential#17#89
+155#Wiskott Aldrich Investigation#25#50
+156#WK ABS#45#84
+157#Worm Identification#28#64
+158#Wrights Stain - Stool#6#73
+159#EBNA#11#54
+160#Echinococcus Serology#49#85
+161#Ectoparasite Identification#23#74
+162#eGFR#32#51
+163#Elavil#4#53
+164#Electrolytes - Blood#37#57
+165#Electrolytes - Random Urine#12#53
+166#Electrolytes - Stool#23#81
+167#Electrophoresis - Cerebrospinal Fluid#44#68
+168#Electrophoresis, Hemoglobin#16#83
+169#Electrophoresis, Lipoprotein#29#75
+170#Electrophoresis, Protein - Serum#13#76
+171#Electrophoresis, Protein - Urine#5#50
+172#Elephantiasis#42#65
+173#EMA#24#89
+174#ENA#30#75
+175#Engraftment Studies#13#70
+176#Enteric Pathogen Stool Culture#32#88
+177#Enterobius vermicularis#6#57
+178#Eosinophil Count - Nasal#11#62
+179#Eosinophil Count - Stool#0#78
+180#Eosinophil Count - Urine#30#82
+181#Epinephrine#43#55
+182#Epival#23#88
+183#Epstein Barr Nuclear Antigen#23#71
+184#Epstein Barr Virus by PCR#33#64
+185#Epstein Barr Virus Capsid Antigen (EBVCA)#26#58
+186#Erythrocyte Fragility#10#81
+187#Erythrocyte Hypoxanthine Phosphoribosyl Transferase#8#62
+188#Erythrocyte Protoporphyrin Level#18#64
+189#Erythrocyte Sedimentation Rate#1#79
+190#Erythropoietin Level#21#57
+191#ESR#31#54
+192#Estradiol (E2)#7#87
+193#Estriol, Unconjugated (E3)#21#71
+194#Estrone#0#71
+195#Ethanol - Blood#19#72
+196#Ethanol - Urine#34#75
+197#Ethosuximide#37#87
+198#Ethylene Glycol#5#52
+199#Extractable Nuclear Antigen Antibodies#1#88
+200#Red Blood Cell Osmotic Fragility#16#67
+201#Red Cell Count (RBC) / Indicies (MCHC, MCV, RDW)#39#58
+202#Red Cell Folate#11#57
+203#Red Cell Mass#30#89
+204#Reducing Substances - Stool#34#74
+205#Reducing Substances - Urine#30#55
+206#Renal Stone#3#71
+207#Renin#11#70
+208#Respiratory Burst#1#62
+209#Respiratory Syncytial Virus (RSV) Screen#31#63
+210#Respiratory Virus Screen#6#53
+211#Reticulocyte Count#35#82
+212#Retinol#18#64
+213#Retinol Binding Protein#1#53
+214#Reverse T3#36#82
+215#Rheumatoid Factor Quantitative#13#74
+216#Rh Type#30#82
+217#Riboflavin#32#53
+218#Rickettsiae Serology#2#54
+219#Risperidone#22#56
+220#Ristocetin Cofactor Activity#48#65
+221#Ritalin#41#61
+222#Rivotril#16#55
+223#RNP (Ribonuclear Protein)#14#89
+224#Ro (Rose Antibodies)#37#75
+225#Rocky Mountain Spotted FeverKaryotyping, Cytogenetic#22#53
+226#Ketone Screen#0#89
+227#Kidney Stone#35#58
+228#Kleihauer Maternal Test#33#67
+229#Arterial-Blood-Gas#41#79
+230#A2 Hemoglobin#41#55
+231#A-G Ratio (Albumin-Globulin Ratio)#23#61
+232#AAT - Blood#7#87
+233#AAT - Stool#14#71
+234#ABG#22#59
+235#ABO & Rh#47#72
+236#Acanthamoeba Culture#44#81
+237#ACE#26#62
+238#Acetaminophen#46#60
+239#Acetone#32#63
+240#Acetylcholine Receptor Antibodies#37#66
+241#Acetylcholinesterase - Amniotic Fluid#29#50
+242#Acetylcholinesterase - Blood#16#86
+243#Acetylsalicylic Acid#8#79
+244#ACHE#5#62
+245#Acid Fast Bacilli (AFB)#21#57
+246#Acquired Immune Deficiency Syndrome#9#66
+247#ACTH#20#88
+248#ACTH, Stimulation Test#4#67
+249#Activated Partial Thromboplastin Time#30#58
+250#Activated Protein C Resistance#26#57
+251#Adenosine Phosphoribosyl Transferase (APRT)#2#52
+252#Adenovirus Screen#18#58
+253#ADH#34#76
+254#Adrenal Antibodies#20#68
+255#Adrenocorticotrophic Hormone#2#80
+256#Adverse Reaction to Transfusion#25#83
+257#AFP#0#53
+258#AGBM#49#80
+259#ALA#42#77
+260#Alanine Aminotransferase#12#85
+261#Albumin - Blood#6#61
+262#Albumin - CSF#12#78
+263#Albumin - Urine#40#76
+264#Alcohol - Blood#15#72
+265#Alcohol - Urine#46#81
+266#Alcohol Screen - Blood#49#58
+267#Aldosterone - Blood#15#70
+268#Aldosterone - Urine#27#50
+269#Alkaline Phosphatase#36#69
+270#Alkaptonuria#20#80
+271#Allergy Testing, IgE#9#87
+272#Alpha Galactosidase#23#81
+273#Alpha Sub Unit (of pituitary glycoprotein)#40#55
+274#Alpha-1 Antitrypsin - Blood#22#75
+275#Alpha-1 Antitrypsin - Stool#34#74
+276#Alpha-1 Antitrypsin Genotyping#0#60
+277#Alpha-1 Antitrypsin Phenotyping (Pi typing)#8#82
+278#Alpha-1-Fetoprotein#18#80
+279#Alpha-1-Fetoprotein (Maternal Serum Prenatal Screen)#30#54
+280#Alpha-1-Fetoprotein, Non-pregnant#22#86
+281#Alpha-1-Fetoprotein, Pregnant#27#83
+282#Alpha-1 Microglobulin#25#63
+283#Alpha-2 Macroglobulin#43#64
+284#Alpha-Acid Glycoprotein#45#62
+285#ALT#5#57
+286#Aluminum#22#77
+287#AMA#15#68
+288#Amethopterin#28#87
+289#Amikacin#23#82
+290#Amino Acids - Blood#42#57
+291#Amino Acids - Urine#39#85
+292#Aminolevulinic Acid#47#87
+293#Aminophylline#7#57
+294#Amiodarone#49#80
+295#Amitriptyline#3#81
+296#AML(M3)#16#73
+297#Ammonia - Blood#44#73
+298#Ammonia - Urine#26#80
+299#Amniotic Fluid Fetal Lung Maturity#47#83
+300#Amoeba#24#73
+301#Amphetamines#40#86
+302#Amylase - Blood#20#87
+303#Amylase - Urine#44#70
+304#ANA#15#79
+305#Anafranil#3#67
+306#Anaerobic Culture#26#72
+307#ANCA#4#55
+308#Androstenedione#41#74
+309#Angiotensin 1#45#80
+310#Angiotensin Converting Enzyme#4#58
+311#Anion Gap#13#50
+312#Anti-10-A#31#87
+313#Anti-A and/or Anti-B Titration#16#69
+314#Anti-Acetylcholine Receptor Antibodies#49#55
+315#Anti-ADN-B#34#63
+316#Anti-Adrenal Cortex Antibodies#20#55
+317#Anti-Beta-2 Glycoprotein#22#72
+318#Calculus Analysis#32#58
+319#Calculus Xray Crystalography#43#79
+320#Candida Vincents Organisms#38#58
+321#Candida Yeast Culture#7#76
+322#Cannabinoids#40#53
+323#Carbamazepine#42#51
+324#Carbamazepine10,11Epoxide#27#87
+325#Carbon Dioxide (CO2) - Blood#23#51
+326#Carbon Monoxide Exposure#37#86
+327#Carboxyhemoglobin#4#79
+328#Carcinoembryonic Antigen#45#60
+329#Cardiac CRP#30#55
+330#Cardiolipin Antibody#37#55
+331#Carnitine, Free and Acyl#20#78
+332#Carotene#42#62
+333#Carrier Studies#0#86
+334#Catecholamines - Plasma#11#63
+335#Catecholamines - Urine#26#61
+336#Cat Scratch Fever#43#75
+337#CBC#17#53
+338#CD3#48#79
+339#CD4 (includes CD8)#16#66
+340#CD34#48#69
+341#CD55 and CD59#9#66
+342#CD95 Induced Apoptosis#27#53
+343#CEA#7#83
+344#Celiac Disease Screen#35#79
+345#Celiac Marker#18#63
+346#Cell Count on Bronchial Washings#4#58
+347#Cellcept#31#78
+348#Celontin#33#53
+349#Ceruloplasmin#25#84
+350#CH-50 Complement#29#61
+351#Chicken Pox#47#72
+352#Chimerism Studies#36#84
+353#Chlamydia/Neisseria gonorroheae#6#74
+354#Chlamydia Serology#26#64
+355#Chlamydia Test#12#84
+356#Chloral Hydrate#16#52
+357#Chloride - Urine#12#83
+358#Chloride - Blood#37#89
+359#Chloride - Stool#16#53
+360#Chloride - Sweat#11#66
+361#Cholesterol, Total to HDL Ratio#48#65
+362#Cholesterol Total#27#59
+363#Cholinergic Receptor Antibody#14#80
+364#Cholinesterase#14#71
+365#Chorionic Gonadotropin#6#63
+366#Chromium#42#63
+367#Chromogranin A#16#78
+368#Chromosome Studies#19#64
+369#Chylomicrons, Visual - Blood#14#65
+370#Circulating Anticoagulant (Inhibitor Screen)#48#79
+371#Circulating Immune Complex#20#56
+372#Citrate - Urine#1#54
+373#CJD#10#78
+374#CK#6#68
+375#CK Isoenzymes#13#67
+376#CKMB#17#81
+377#Cl#32#86
+378#Occult Blood - Urine#42#78
+379#Olanzapine (Zyprexa)#6#87
+380#Oleic Acid#39#84
+381#Oligoclonal bands in CSF#0#83
+382#Onchcerciasis#19#88
+383#Organic Acids#13#80
+384#Ornithosis#42#60
+385#Osmolal Gap#36#83
+386#Osmolality - Blood#9#58
+387#Osmolality - Fluid#9#80
+388#Osmolality - Stool#42#81
+389#Osmolality - Urine#0#58
+390#Osmotic Fragility, Erythrocyte#2#84
+391#Osteocalcin#15#71
+392#Ova And Parasites#25#60
+393#Ovarian Antibody#17#68
+394#Oxalate#0#85
+395#Oxidative Burst#27#82
+396#Oxypurines - Blood#41#67
+397#Oxypurines - Urine#25#70
+398#Vanadium#46#81
+399#Vancomycin - Blood#0#70
+400#Vancomycin - CSF#21#58
+401#Vancomycin Resistant Enterococcus (VRE) Culture#33#50
+402#Vancomycin Resistant Enterococcus (VRE) Methicillin Resistant Staphylococcus (MRSA) Culture#46#55
+403#Vanillylmandelic Acid#42#79
+404#Varicella zoster#18#74
+405#Varicella Zoster Virus (VZV) Direct Fluorescent Antigen Test (DFA)#37#72
+406#Vasectomy Check#8#73
+407#Vasoactive Intestinal Polypeptide#43#86
+408#VDRL#5#62
+409#Verapamil#6#65
+410#Vigabatrin#37#63
+411#VIP#47#78
+412#Viral Culture#12#83
+413#Viral Load, HIV#40#80
+414#Viscosity#16#61
+415#Vitamin A#1#67
+416#Vitamin B1#29#66
+417#Vitamin B2#17#78
+418#Vitamin B6#33#81
+419#Vitamin B12#17#84
+420#Vitamin C#5#56
+421#Vitamin D, 1,25 Dihydroxy#28#76
+422#Vitamin D, 25 Hydroxy#11#62
+423#Vitamin D3#2#56
+424#Vitamin E#34#70
+425#VMA#22#74
+426#Volatile Screen#45#71
+427#Von Willebrand Factor Collagen Binding#2#57
+428#Von Willebrand Factor Multimers#46#63
+429#Von Willebrand Workup#20#72
+(429 rows)

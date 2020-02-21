@@ -1,0 +1,158 @@
+#!/bin/bash
+
+SHELL=/bin/sh
+INSTALL=install
+
+PREFIX=@prefix@
+
+INCLUDEDIR=$PREFIX/include
+BINDIR=$PREFIX/bin
+LIBDIR=$PREFIX/@LIB@
+
+ARGS=$*
+
+FLAGS="-w -pipe -I $INCLUDEDIR @CPPFLAGS@ @LDFLAGS@ @mysql_cflags@" 
+
+FILEBITS="@file64@"
+
+MUMPS_COMPILER=$BINDIR/mumps2c
+GBLLIB=@gbllib@
+MUMPSLIB=mumps
+
+USAGE="usage: $0 [-h|-?|--help|-v|--ver|-n|--native|-b|-sT|-sU|-g|-p|--postgres\
+|--berkeley|--server=udp|tcp|--debug] file ..."
+
+POSTGRESDEF=""
+FILE_FOUND=n
+CXX="g++"
+
+
+echo
+echo "*************** NOTICE ***************************************"
+echo "Compiler is not the same as the interpreter"
+echo "***************************************************************"
+echo
+
+MFLAG=0
+
+for var in $* 
+      do
+      if [ $var = "--help" -o $var = "-h" -o $var = "-?" -o $var = "-v" -o $var = "--ver" ]
+            then
+            mumps2c -v
+            echo "Copyrights: (see individual modules for details)"
+            echo "  Copyright (c) 2000, 2001, 2002, 2003, 2013, 2017 by Kevin C. O'Kane"
+            echo "  Copyright (c) 2002 by Matthew J. Lockner"
+            echo "  Copyright (c) 2002 by Michael D. Janssen"
+            echo "License: GNU GPL and GNU LGPL (see individual modules)"
+            echo
+            echo "mumpsc [options] filename.mps"
+            echo "mumpsc [options] filename.cpp"
+            echo
+            echo " Options: "
+            echo "  -h|-?|-v|--help|--ver     This help display"
+            echo
+            echo " Output: filename.cpp and filename"
+            echo
+            exit
+            fi
+
+#      if [ $var = "--mumps" -o $var = "-m" ]
+#		then
+#			MFLAG=1
+#		fi
+
+      done
+
+objs=''
+
+# compiling with iobject modules?
+
+for arg in $ARGS
+do
+
+	base=`basename $arg`
+	ext=${base#*.}
+
+	if [ $ext = 'o' ]
+		then
+		objs="$objs $arg"
+		fi
+
+done
+
+# common_libs="-lm -L$LIBDIR -lmpscpp -l$MUMPSLIB -l$GBLLIB @postgresdb@ -lpcre -lgmp -Lx86-64-linux-gnu -lmpfr"
+common_libs="-lm -lreadline -L$LIBDIR -lmpscpp -l$MUMPSLIB -l$GBLLIB @postgresdb@ -lpcre @mathLink@"
+
+for arg in $ARGS
+do
+
+	base=`basename $arg`
+	ext=${base#*.}
+
+    if [ "$ext" = 'mps' -o "$ext" = 'cpp' ]
+    then
+
+	FILE_FOUND=y
+	infile_dir=`dirname $arg`
+	infile_base=`basename $arg .mps`
+	infile="$infile_dir/$infile_base"
+	infileB="$infile"
+
+      if [ $ext = 'mps' ]
+      then
+            echo "Compiling from Mumps source ..."
+            $MUMPS_COMPILER $infile.mps
+            astyle -q --style=banner $infile_base.cpp
+	    rm -f $infile.m
+
+            if [ $? != 0 ]
+            then
+                  echo "terminating due to compiler detected source code error"
+                  exit 16
+                  fi
+
+	    infile_base=`basename $arg .mps`
+            infile="$infile.cpp"
+            fi
+
+      Cflg=1
+
+      if [ $ext = 'cpp' ]
+      then
+            Cflg=0
+            infile_base=`basename $arg .cpp`
+            infile="$infile_dir/$infile_base.cpp"
+            echo "Compiling C++ source"
+            echo "Compiling " $infile 
+		FLAGS="$FLAGS -D_MDH_"
+
+    fi
+
+	if [ $? = 0 ]
+	then
+		if [ $Cflg = 1 ]
+			then
+			echo Compiling generated C++ code...
+			fi
+
+		$CXX -O3 -fpermissive $DEBUG $POSTGRESDEF $FLAGS -L$LIBDIR $FILEBITS -o $infile_base $infile \
+				@profile@ $objs -lmumps $common_libs @mysql_cflags@
+		exit $?
+	else
+		echo C compilation surpressed.
+		echo 
+		# Uncomment the following if you wish to halt a batch
+		# compilation if a single file fails to compile
+		#
+		exit 16
+	fi
+	fi
+done
+
+if [ $FILE_FOUND = n ]
+then
+	echo $USAGE
+fi
+
+exit 0

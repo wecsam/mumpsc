@@ -1,0 +1,45 @@
+#!/bin/bash
+
+if [ "$OSTYPE" != "cygwin" ]; then
+	if [ `whoami` != "root" ]; then
+        	echo "**** you must be root to run this script"
+        	exit
+        	fi
+else
+        rm -f /usr/bin/mumps2c
+        rm -f /usr/bin/mumps
+fi
+
+if [ "$OSTYPE" == "cygwin" ]; then
+	pass=
+else
+	pass=$1
+	if [ -z "$1" ]
+  	then
+		pass=abc123
+		fi
+	echo $pass
+	fi
+
+echo "Building Mumps with Globals Resident in a MySQL Server"
+echo "Server IP Number 127.0.0.1"
+echo "Server Mumps dbname = mumps"
+echo
+
+./configure prefix=/usr \
+--with-mysqldb \
+--with-mysql-host=127.0.0.1 \
+--with-dbname=mumps \
+--with-mysql-passwd=$pass
+
+if (($? > 0))
+	then
+	echo "Configureation error"
+	exit
+	fi
+
+# number of concurrent make jobs
+
+JOBS=6
+
+make -j $JOBS && make install

@@ -1,0 +1,298 @@
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#+   
+#+     Mumps Bioinformatics Software Library
+#+     Copyright (C) 2003, 2004, 2008, 2015, 2016, 2017 by Kevin C. O'Kane  
+#+
+#+     Kevin C. O'Kane
+#+     kc.okane@gmail.com
+#+     http://www.cs.uni.edu/~okane
+#+     http://threadsafebooks.com
+#+
+#+ This program is free software; you can redistribute it and/or modify
+#+ it under the terms of the GNU General Public License as published by
+#+ the Free Software Foundation; either version 2 of the License, or
+#+ (at your option) any later version.
+#+ 
+#+ This program is distributed in the hope that it will be useful,
+#+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#+ GNU General Public License for more details.
+#+ 
+#+ You should have received a copy of the GNU General Public License
+#+ along with this program; if not, write to the Free Software
+#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+// BIGFLOAT may be defined next (configure option)
+@floatSize@
+
+// numSetup.h library
+
+// perlmatch(svPtr, "", (char *)a, (char *) 
+// "^[+-]?([0-9]*\.?[0-9]+|[0-9]+\.?[0-9]*)([eE][+-]?[0-9]+)?$");
+
+//.......................
+// floating point section
+//.......................
+
+#if opcode == NS_DIV // division done in floating point
+
+	{
+
+#else
+
+    if ( floatstring(a) || floatstring(b) ) {
+
+#endif
+
+	// ................................................................
+	// if either is floating point, operation is done in floating point
+	// ................................................................
+
+#ifndef MULTI_PRECISION
+
+//........................
+// hardware floating point
+//........................
+
+#if opcode == NS_ADD // add
+
+#ifdef BIGFLOAT
+	long double af,bf,cf;
+	af=strtold(a,NULL); bf=strtold(b,NULL);
+	cf=af+bf;
+	gcvt_wrapper(cf,c);
+#else
+	double af,bf,cf;
+	af=strtod(a,NULL); bf=strtod(b,NULL);
+	cf=af+bf;
+	gcvt_wrapper(cf,c);
+#endif
+
+#elif opcode == NS_SUB // subtract
+
+#ifdef BIGFLOAT
+	long double af,bf,cf;
+	af=strtold(a,NULL); bf=strtold(b,NULL);
+	cf=af-bf;
+	gcvt_wrapper(cf,c);
+#else
+	double af,bf,cf;
+	af=strtod(a,NULL); bf=strtod(b,NULL);
+	cf=af-bf;
+	gcvt_wrapper(cf,c);
+#endif
+
+#elif opcode == NS_MULT // multiply
+
+#ifdef BIGFLOAT
+	long double af,bf,cf;
+	af=strtold(a,NULL); bf=strtold(b,NULL);
+	cf=af*bf;
+	gcvt_wrapper(cf,c);
+#else
+	double af,bf,cf;
+	af=strtod(a,NULL); bf=strtod(b,NULL);
+	cf=af*bf;
+	gcvt_wrapper(cf,c);
+#endif
+
+#elif opcode == NS_DIV // divide
+
+#ifdef BIGFLOAT
+	long double af,bf,cf;
+	af=strtold(a,NULL); bf=strtold(b,NULL);
+	cf=af/bf;
+	gcvt_wrapper(cf,c);
+#else
+	double af,bf,cf;
+	af=strtod(a,NULL); bf=strtod(b,NULL);
+	cf=af/bf;
+	gcvt_wrapper(cf,c);
+#endif
+
+#elif opcode == NS_INTDIV // integer division
+
+#ifdef BIGFLOAT
+	long double af,bf,cf;
+	af=strtold(a,NULL); bf=strtold(b,NULL);
+	cf=floorl(af/bf);
+	gcvt_wrapper(cf,c);
+#else
+	double af,bf,cf;
+	af=strtod(a,NULL); bf=strtod(b,NULL);
+	cf=floor(af/bf);
+	gcvt_wrapper(cf,c);
+#endif
+
+#endif
+	return;
+
+#else
+
+//............................
+// not hardware floating point
+// is MULTI_PRECISION
+//............................
+
+	static mpfr_t fa,fb,fc,zero;
+        static int f=1;
+
+        if (f) { 
+
+		mpfr_init2 (fb, FLT_PRECISION);  
+		mpfr_init2 (fa, FLT_PRECISION);  
+		mpfr_init2 (fc, FLT_PRECISION);  
+                mpfr_init2 (zero, FLT_PRECISION);
+                mpfr_set_d (zero, 0.0, MPFR_RNDN);
+
+		f=0; 
+		}
+
+	if (mpfr_set_str (fa, a, 10, MPFR_RNDN)==-1 ) { 
+		char ca[STR_MAX];
+		strcpy(ca,a);
+		for (int i=0; ca[i]=a[i]; i++) {
+			if (isdigit(a[i])) continue;
+			ca[i]=0;
+			break;
+			}
+		mpfr_set_str(fa,ca,10,MPFR_RNDN);
+		}
+
+	if (mpfr_set_str (fb, b, 10, MPFR_RNDN)==-1 ) { 
+		char cb[STR_MAX];
+		strcpy(cb,b);
+		for (int i=0; cb[i]=b[i]; i++) {
+			if (isdigit(b[i])) continue;
+			cb[i]=0;
+			break;
+			}
+		mpfr_set_str(fb,cb,10,MPFR_RNDN);
+		}
+
+#if opcode == NS_ADD
+	mpfr_add(fc,fa,fb,MPFR_RNDN);
+
+#elif opcode == NS_SUB
+        mpfr_sub(fc,fa,fb,MPFR_RNDN);
+
+#elif opcode == NS_MULT
+	mpfr_mul(fc,fa,fb,MPFR_RNDN);
+
+#elif opcode == NS_DIV
+       if (mpfr_cmp(fb,zero)==0) {
+                printf("Divide Error. Zero floating point denominator %s\n",b);
+                GlobalExceptionCode=NUMERIC_RANGE;
+                throw MumpsGlobalException();
+                }
+        mpfr_div(fc,fa,fb,MPFR_RNDN);
+
+#elif opcode == NS_INTDIV  // integer division
+       if (mpfr_cmp(fb,zero)==0) {
+                printf("Divide Error. Zero floating point denominator %s\n",b);
+                GlobalExceptionCode=NUMERIC_RANGE;
+                throw MumpsGlobalException();
+                }
+        mpfr_div(fc,fa,fb,MPFR_RNDN);
+        mpfr_trunc(fc,fc);
+
+#endif
+
+        mpfr_sprintf(c,"%.@fp_digits@RNg",fc);
+
+        return;
+#endif
+	}
+
+//............................................
+// integer section - both operands are integer
+//............................................
+
+#ifndef MULTI_PRECISION
+
+	@intSize@ aa=atoll(a); 
+	@intSize@ bb=atoll(b); 
+	@intSize@ cc; 
+
+//........................
+// hardware fixed point
+//........................
+
+#if opcode == NS_ADD // add
+	cc=aa+bb; 
+ 	sprintf(c,"%@intFmt@",cc); 
+ 	return;
+
+#elif opcode == NS_SUB // subtract
+	cc=aa-bb;
+ 	sprintf(c,"%@intFmt@",cc); 
+ 	return;
+
+#elif opcode == NS_MULT // multiply
+	cc=aa*bb;
+ 	sprintf(c,"%@intFmt@",cc); 
+ 	return;
+
+#elif opcode == NS_DIV // divide - integer div actually done as flt pt above
+
+#ifdef BIGFLOAT
+	long double af,bf,cf;
+	af=strtold(a,NULL); bf=strtold(b,NULL);
+	cf=af/bf;
+	gcvt_wrapper(cf,c);
+	return;
+#else
+	double af,bf,cf;
+	af=strtod(a,NULL); bf=strtod(b,NULL);
+	cf=af/bf;
+	gcvt_wrapper(cf,c);
+	return;
+#endif
+
+#elif opcode == NS_INTDIV // integer division
+	cc=aa/bb;
+ 	sprintf(c,"%@intFmt@",cc); 
+ 	return;
+#endif
+
+#else
+
+       static mpz_t  na;
+       static mpz_t  nb;
+       static mpz_t  nc;
+       static int f=1;
+
+       if (f) {
+       	mpz_init (na);
+       	mpz_init (nb);
+       	mpz_init (nc);
+	f=0;
+	}
+
+       if (a[0]==0) gmp_sscanf("0","%Zd",na);
+       else if (gmp_sscanf (a, "%Zd", na ) ==0 ) gmp_sscanf("0","%Zd", na);
+
+       if (b[0]==0) gmp_sscanf("0","%Zd",nb);
+       else if (gmp_sscanf (b, "%Zd", nb ) ==0 ) gmp_sscanf("0","%Zd", nb);
+
+#if opcode == NS_ADD 
+	mpz_add(nc,na,nb);
+
+#elif opcode == NS_SUB
+	mpz_sub(nc,na,nb);
+
+#elif opcode == NS_MULT
+       mpz_mul(nc,na,nb);
+
+#elif opcode == NS_DIV
+	mpz_div(nc,na,nb);
+
+#elif opcode == NS_INTDIV
+	mpz_div(nc,na,nb);
+
+#endif
+
+       gmp_sprintf(c,"%Zd",nc);
+#endif

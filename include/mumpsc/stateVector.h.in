@@ -1,0 +1,112 @@
+/*#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+    Mumps Compiler Run-Time Support Functions
+ *#+    Copyright (c) A.D. 2001, 2002, 2003, 2015 by Kevin C. O'Kane
+ *#+    kc.okane@gmail.com
+ *#+    okane@cs.uni.edu
+ *#+
+ *#+    This library is free software; you can redistribute it and/or
+ *#+    modify it under the terms of the GNU Lesser General Public
+ *#+    License as published by the Free Software Foundation; either
+ *#+    version 2.1 of the License, or (at your option) any later version.
+ *#+
+ *#+    This library is distributed in the hope that it will be useful,
+ *#+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *#+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *#+    Lesser General Public License for more details.
+ *#+
+ *#+   You should have received a copy of the GNU Lesser General Public
+ *#+    License along with this library; if not, write to the Free Software
+ *#+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *#+
+ *#+    http://www.cs.uni.edu/~okane
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+/* stateVector.h - Mumps Runtime Library */
+ 
+#include <stdio.h>
+#include <mumpsc/sysparms.h>
+#include <mumpsc/strmax.h>
+#include <mumpsc/sysparms.h>
+#include <sys/types.h>
+
+#include <mumpsc/defines.h>
+
+#ifndef STATEVECTOR_H 
+#define STATEVECTOR_H
+struct MSV { /* state vector */
+      char cfgdata[256];
+      char cfgkey[256];
+      unsigned char bd[STR_MAX];
+      unsigned char pd1[PS1];
+      unsigned char v1d[STR_MAX];
+      unsigned char xd[STR_MAX];
+      unsigned char setname[STR_MAX];
+      int LockDone;
+      int kflg;
+      int io;
+      int ierr;
+      int sdlim;
+      int symflg;
+      int ITRAP;
+      int setpiece;
+      int t0px;
+      int xpx;
+      int ctrlc;
+      int iorg;
+      int symlen;
+      int NOERR;
+      FILE *in_file[10], *out_file[10];
+      int hor[10],ver[10];
+      long LineNumber;
+      long tpx;
+      int _Sym;
+      long pd1len;
+      int t2;
+      int nflg;
+      int ERROR;
+      int gpad;
+      unsigned char naked[STR_MAX];
+      unsigned char naked1[STR_MAX];
+      struct stab *start[SYM_MAX];
+      struct nmes * nstart;
+      char RefParm[10][16];
+      char Rargs[10][16];
+      int Rargsx;
+      int _SymPush;
+      int order;
+      unsigned long int hit,count; /* btree cache hit ratio */
+      off_t restoredata;
+      int ScanMinWordSize;
+      int ScanMaxWordSize;
+      int PD1;
+      char UKEY[1024];
+      char UDAT[1024];
+//      int (*__label_lookup)(char *);
+//      char * (*__text_function)(int);
+      unsigned char args[STR_MAX];
+      char Table[256]; // data base table
+      int TabSize;
+      int ConOpen;
+      char pgsql_msg[STR_MAX];
+      char Connection[STR_MAX];
+      char Col_Names[STR_MAX];
+      int fdes[2];
+      int exec;
+      char reference[1024]; // call by ref underlying name
+      char ErrChar;
+      char CurrentFile[512]; // name of current file - see readf_
+      char *grslts[22]; // pointers to results from sql global array action
+      int grsltsx; //number of results
+      char sqloutput[512]; // sql output file name inf btree.cpp
+      char program[512]; // current program name
+      };
+
+#ifndef _INTERP_
+struct MSV * AllocSV(void);
+#else
+struct MSV * AllocSV(void);
+#endif
+
+#define StateVector struct MSV * 
+#endif

@@ -1,0 +1,93 @@
+/*#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+	Mumps Compiler Run-Time Support Functions
+ *#+	Copyright (c) A.D. 2001, 2002, 2015 by Kevin C. O'Kane
+ *#+	kc.okane@gmail.com
+ *#+
+ *#+	This library is free software; you can redistribute it and/or
+ *#+	modify it under the terms of the GNU Lesser General Public
+ *#+	License as published by the Free Software Foundation; either
+ *#+	version 2.1 of the License, or (at your option) any later version.
+ *#+
+ *#+	This library is distributed in the hope that it will be useful,
+ *#+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *#+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *#+	Lesser General Public License for more details.
+ *#+
+ *#+   You should have received a copy of the GNU Lesser General Public
+ *#+	License along with this library; if not, write to the Free Software
+ *#+	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *#+
+ *#+	http://www.cs.uni.edu/~okane
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+/* arith.h - Mumps runtime library
+ *
+ * Arithmetic functions, which take string operands and produce their
+ * result in a string.	Used to implement the majority of math
+ * operations in the Mumps to C translation.
+ */
+
+#include <mumpsc/config.h>
+
+#if HAVE_GMP==YES
+	#if HAVE_MPFR==YES
+		#define MULTI_PRECISION
+		#include <gmp.h>
+		#include <mpfr.h>
+		#endif
+	#endif
+
+#define FLT_PRECISION @fp_bits@
+
+void Mltoa(long,unsigned char *);
+/* Obvious arithmetic functions: c = a <op> b */
+void add(const char *a, const char *b, char *c);
+char * add1(const char *a, long b, char *c);
+char * add3(const char *a, double b, char *c);
+void sub(const char *a, const char *b, char *c);
+void mult(const char *a, const char *b, char *c);
+void mult1(const char *a, long b, char *c);
+void divx(const char *a, const char *b, char *c);
+void modulo(const char *a, const char *b, char *c);
+void divi(const char *a, const char *b, char *c);
+void expx(const char *a, const char *b, char *c);
+int mps_abs(char *, char *);
+int mps_sqrt(char *, char *);
+int mps_floor(char *, char *);
+int mps_ceil(char *, char *);
+int mps_trunc(char *, char *);
+void mps_log2(char *, char *);
+void mps_log10(char *, char *);
+void mps_log(char *, char *);
+void mps_cos(char *, char *);
+void mps_acos(char *, char *);
+void mps_tan(char *, char *);
+void mps_atan(char *, char *);
+void mps_sin(char *, char *);
+void mps_asin(char *, char *);
+void mps_exp(char *, char *);
+void mps_exp2(char *, char *);
+void mps_exp10(char *, char *);
+void mps_pow(char *, char *, char *);
+void mps_justify(char *, char *, char *);
+
+/* strcmp()-style function, where aa and bb look like numbers.
+ *    -1 if aa	< bb
+ *     0 if aa == bb
+ *     1 if aa	> bb
+ */
+int numcomp(unsigned char *aa, unsigned char *bb);
+int numcomp1(unsigned char *aa, long bb);
+
+/* Put a into a canonical format. */
+void cannon(unsigned char a[]);
+
+#if UNIX==1
+
+/* Hand-rolled inverses of atol() and atoi(). */
+// void ltoa(long, unsigned char *);
+
+void itoa(int, unsigned char *, int);
+
+#endif

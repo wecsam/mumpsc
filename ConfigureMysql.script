@@ -1,0 +1,216 @@
+#!/bin/bash
+
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#+
+#+     Mumps Bioinformatics Software Library
+#+     Copyright (C) 2015 by Kevin C. O'Kane
+#+
+#+     Kevin C. O'Kane
+#+     kc.okane@gmail.com
+#+     http://www.cs.uni.edu/~okane
+#+     http://threadsafebooks.com/
+#+
+#+ This program is free software; you can redistribute it and/or modify
+#+ it under the terms of the GNU General Public License as published by
+#+ the Free Software Foundation; either version 2 of the License, or
+#+ (at your option) any later version.
+#+
+#+ This program is distributed in the hope that it will be useful,
+#+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#+ GNU General Public License for more details.
+#+
+#+ You should have received a copy of the GNU General Public License
+#+ along with this program; if not, write to the Free Software
+#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# this file MUST be run as root
+# this file MUST be run as root
+# this file MUST be run as root
+
+if [ "$OSTYPE" == "cygwin" ]; then
+	echo "This script is not appropriate for Cygwin"
+	exit
+	fi
+
+if [ `whoami` != "root" ]; then
+	echo
+	echo "****************************************"
+        echo "**** you must be root to run this script"
+	echo "****************************************"
+	echo
+        exit
+        fi
+
+# This file will install (if needed) MySQL and configure
+# it and mumps.
+
+# If MySQL installation is done, you will need to provide
+# a password for the MySQL root (this is not the system root).
+
+# You will also need to provide a password for the MySQL mumps user.
+
+# This file was developed and tested using Linux Mint 17.2 and should be 
+# compatible with related Ubuntu/Debian based systems.
+
+# This code is provided with no warranty as per the GPL license.
+
+# Configure MySQL for Mumps usage
+
+# Required software packages 
+
+#	mysql-client
+#	mysql-server
+#	mysql-common
+#	mysql-utilities
+#	mysql-workbench
+#	libmysqlclient-dev
+#	libmysqld-dev
+
+# Adjust the following appropriately.
+
+SOFTWAREROOT="/usr/lib/mysql"
+
+echo
+echo "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+echo "Grand general Mumps MySQL instalerizer."
+echo "This script will install, as needed, MySQL, g++,"
+echo "autoconf, libccre-dev and Mumps."
+echo "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+echo
+
+echo "---------------------------------------------------------------"
+echo
+echo "If MySQL is already installed, you will need to know the"
+echo "password for MySQL root (not the operating system root)."
+echo
+echo "If MySQL needs to be installed, you will need to set the MySQL root"
+echo "password. This is not the operating system root. Dialog boxes will "
+echo "pop up during the install and ask for the MySQL root password."
+echo
+echo "NOTE: EVEN THOUGH THE DIALOG SUGGESTS THAT THE PASSWORD IS OPTIONAL"
+echo "      IT IS NOT - REPEAT - NOT. TYPE IN A PASSWORD...."	
+echo
+echo "You will be prompted again for the MySQL root password. The install code"
+echo "assumes you used abc123 but you may enter another value"
+echo
+echo "You will also be asked to set the password for the MySQL user named mumps."
+echo "This may or may not be the same as the MySQL root password (your option)."
+echo
+echo "You must have an Internet connection to install the software."
+echo
+echo "You will see many messages. The final message is the one that counts."
+echo " if you see: ***Done - it worked! it is likely that everything installed correctly."
+echo
+
+while true; do
+	read -p "Do you wish to proceed? (y/n) " yn
+	case $yn in
+	[Yy]* ) break;;
+	[Nn]* ) exit;;
+	* ) echo "Please answer yes or no.";;
+	esac
+	done
+	echo
+
+	apt-get -q update
+	apt-get -q -y astyle
+	apt-get -q -y install mysql-client
+	apt-get -q -y install mysql-server 
+	apt-get -q -y install mysql-common 
+	apt-get -q -y install mysql-utilities 
+	apt-get -q -y install mysql-workbench 
+	apt-get -q -y install libmysqlclient-dev
+	apt-get -q -y install libmysqld-dev
+
+	apt-get -q -y install autoconf 
+
+	apt-get -q -y install libreadline-dev
+
+	apt-get -q -y install libpcre3 
+	apt-get -q -y install libpcre3-dev 
+
+	apt-get -q -y install g++ 
+	apt-get -q -y install gcc-doc 
+
+	apt-get -q -y install libgmp-dev
+	apt-get -q -y install libmpfr-dev
+
+# compile and install mumps for mysql.
+# edit configurations for mumps as needed in this file especially
+# passwords and host ip number. see readme.pdf
+
+MumpsPassword=abc123
+
+echo
+read -p "What should the MySQL password for user 'mumps' be? (default: abc123) " pass
+if [ -z $pass ]; then
+	MumpsPassword=abc123
+	fi
+
+echo
+echo "The password for user 'mumps' will be $MumpsPassword"
+
+	while true; do
+		echo
+		read -p "Is $MumpsPassword the correct password for user 'mumps'? (y/n) " yn
+		case $yn in
+			[Yy]* ) break;;
+			[Nn]* ) read -p "Enter the password to be used for user 'mumps' " MumpsPassword ;;
+			* ) echo "Please answer yes or no.";;
+			esac
+		done
+
+echo
+echo "We will now run BuildMumpsWithGlobalsInMySQL.script"
+read -p "Hit enter to begin Mumps configuration script " x
+echo
+
+./BuildMumpsWithGlobalsInMySQL.script $MumpsPassword
+
+echo
+read -p "What is the MySQL root password? (abc123) " pass
+if [ -z $pass ]; then
+	pass=abc123
+	fi
+
+echo
+echo "MySQL root password is $pass"
+echo "User mumps MySQL password will be $MumpsPassword"
+echo
+
+echo
+echo "The password for MySQL root is $pass"
+
+	while true; do
+		echo
+		read -p "Is $pass the correct password for MySQL root? (y/n) " yn
+		case $yn in
+			[Yy]* ) break;;
+			[Nn]* ) read -p "Enter the correct MySQL root password " pass ;;
+			* ) echo "Please answer yes or no.";;
+			esac
+		done
+
+echo
+echo "Note: if user mumps does not exist, you will see an error message to"
+echo "that effect next. You may ignore it."
+echo
+
+mysql -u root -p$pass -e "drop user 'mumps';"
+mysql -u root -p$pass -e "create user 'mumps' identified by '$MumpsPassword';"
+mysql -u root -p$pass -e "drop database if exists mumps;"
+mysql -u root -p$pass -e "create database mumps;"
+mysql -u root -p$pass -e "GRANT ALL PRIVILEGES ON mumps.* TO 'mumps'@'%' WITH GRANT OPTION;"
+
+# create a small mumps program in file gblinit.mps
+
+echo -e "	w \"init database\",!\n	sql/f test 5\n	set ^test(1)=99\n	w \"if you see 99 it worked: \",^test(1),!" > gblinit.mps
+
+# run the program - it will initialize the mumps database
+
+./mumps gblinit.mps 
+
+# done

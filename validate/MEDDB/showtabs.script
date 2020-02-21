@@ -1,0 +1,31 @@
+#!/bin/bash
+
+echo "labtab"
+mysql -u mumps -D mumps -t --execute="select * from labtab limit 10;"
+
+echo "labs"
+mysql -u mumps -D mumps -t --execute="select * from labs limit 10;"
+
+echo "probtab"
+mysql -u mumps -D mumps -t --execute="select * from probtab limit 10;"
+
+echo "problems"
+mysql -u mumps -D mumps -t --execute="select * from problems limit 10;"
+
+echo "medtab"
+mysql -u mumps -D mumps -t --execute="select * from medtab limit 10;"
+
+echo "medadmin"
+mysql -u mumps -D mumps -t --execute="select * from medadmin limit 10;"
+
+echo "patientid"
+mysql -u mumps -D mumps -t --execute="select * from patientid limit 10;"
+
+echo "ptname"
+mysql -u mumps -D mumps -t --execute="select * from ptname limit 10;"
+
+echo "ptname"
+mysql -u mumps -D mumps -t --execute="select * from ptname limit 10;"
+
+echo "vitals"
+mysql -u mumps -D mumps -t --execute="select * from vitals limit 10;"

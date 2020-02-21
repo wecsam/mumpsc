@@ -1,0 +1,47 @@
+# Created by ./configure
+/Makefile
+/arith.cpp
+/bifs.cpp
+/btree.cpp
+/confdefs.h
+/config.log
+/config.status
+/conftest.c
+/conftest.err
+/globalb.cpp
+/include/mumpsc/arith.h
+/include/mumpsc/btree.h
+/include/mumpsc/config.h
+/include/mumpsc/defines.h
+/include/mumpsc/globalOrder.h
+/include/mumpsc/keyfix.h
+/include/mumpsc/libmpscpp.h
+/include/mumpsc/memsize.h
+/include/mumpsc/numSetup.h
+/include/mumpsc/stateVector.h
+/include/mumpsc/strmax.h
+/include/mumpsc/strmove.h
+/include/mumpsc/sysparms.h
+/interp.cpp
+/libmpscpp.cpp
+/makePipes
+/mdh.bat
+/mumps.c
+/mumps.cpp
+/mumpsc
+/mumpsc.bat
+/mumpslib
+/rmPipes
+/server.cpp
+/sym.cpp
+/sys1.c
+/sysfunc.cpp
+
+# Binaries
+*.o
+lib*.a
+/mumps
+/mumps2c
+
+# Created by scripts
+/gblinit.mps

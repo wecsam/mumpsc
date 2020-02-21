@@ -1,0 +1,55 @@
+#!/bin/bash
+
+if [ "$OSTYPE" != "cygwin" ]; then
+	if [ `whoami` != "root" ]; then
+        	echo "**** you must be root to run this script"
+        	exit
+        	fi
+else
+        rm -f /usr/bin/mumps2c
+        rm -f /usr/bin/mumps
+fi
+
+pass=$1
+if [ -z "$1" ]
+  then
+        pass=abc123
+        fi
+echo $pass
+
+echo "Building Mumps with Globals Resident in a PostgreSQL Server"
+echo "Server IP Number 127.0.0.1"
+echo "Server Mumps dbname = mumps"
+echo
+
+# alter the following lines as needed.
+# note especially the password and host IP number.
+
+./configure prefix=/usr \
+--with-pgdb=/usr/include/postgresql \
+--with-dbname=mumps \
+--with-pgsql-host=127.0.0.1  \
+--with-pgsql-user=mumps \
+--with-pgsql-passwd=$pass  \
+--with-tabsize=4
+# --with-hardware-math
+
+#--with-tabsize=3
+
+if (($? > 0))
+	then
+	echo "Configure error"
+	exit
+	fi
+
+# number of concurrent make jobs
+
+JOBS=6
+
+make -j $JOBS && make install
+
+wait
+
+rm /usr/bin/mumpsRO
+
+ln -s /usr/bin/mumps /usr/bin/mumpsRO

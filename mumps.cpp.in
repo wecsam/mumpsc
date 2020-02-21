@@ -1,0 +1,312 @@
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#+
+#+     Mumps Bioinformatics Software Library
+#+     Copyright (C) 2003, 2004, 2008, 2012, 2014, 2015, 2017 by Kevin C. O'Kane
+#+
+#+     Kevin C. O'Kane
+#+     kc.okane@gmail.com
+#+     http://www.cs.uni.edu/~okane
+#+     http://threadsafebooks.com/
+#+
+#+ This program is free software; you can redistribute it and/or modify
+#+ it under the terms of the GNU General Public License as published by
+#+ the Free Software Foundation; either version 2 of the License, or
+#+ (at your option) any later version.
+#+
+#+ This program is distributed in the hope that it will be useful,
+#+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#+ GNU General Public License for more details.
+#+
+#+ You should have received a copy of the GNU General Public License
+#+ along with this program; if not, write to the Free Software
+#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+// May 23, 2018
+
+#include <mumpsc/defines.h>
+#include <mumpsc/libmpscpp.h>
+#include <mumpsc/config.h>
+#include <string.h>
+#include <stdio.h>
+#include <readline/readline.h>
+#include <readline/history.h>
+#include <malloc.h>
+
+@dbtype@
+@client@
+@standalone@
+@readonly@
+@floatSize@
+
+char * pad(char * p, int x) {
+    char out[512];
+    strncpy(out,p,512);
+    while (strlen(out)<x) strcat(out," ");
+    return out;
+    }
+
+int main(int argc, char **argv) {
+
+    static struct C {
+        char * s;
+        C *next;
+        } *S=NULL,*p1, *p2=NULL;
+
+    unsigned char tmp[STR_MAX];
+    unsigned char tmp0[STR_MAX];
+    unsigned char tmp1[STR_MAX];
+
+//-----------------------------------------------------
+
+#ifdef POSTGRESSDB
+#define database "; DBMS: PosgreSql"
+#endif
+
+#ifdef MYSQLDB
+#define database "; DBMS: MySQL"
+#endif
+
+#ifdef NATIVE
+
+#define database "; DBMS: Native Stand Alone"
+
+#ifdef CLIENT
+#define database "; DBMS: Native Client Server"
+#endif
+
+#ifdef NATIVE_STANDALONE
+#define database "; DBMS: Native Shared Stand Alone"
+#endif
+
+#ifdef READ_ONLY
+#define database "; DBMS: Native Read Only"
+#endif
+
+#endif
+
+//-----------------------------------------------------
+
+#ifdef BIGFLOAT
+#define floatSize "Float: long double"
+#else
+#define floatSize "Float: double"
+#endif
+
+#define HardwareMath "; Hardware math: @hardwareMath@"
+#define Ints "; Int: @intSize@"
+#define FltDigits "; Float digits: @fp_digits@"
+#define Cache "; Cache: @cache@"
+#define BlkSiz "; Block: @block@"
+
+#ifdef HAVE_HARDWARE_MATH
+	#define Fpbits "; FP Bits: N/A"
+#else
+	#define Fpbits "; FP Bits: @fp_bits@"
+#endif
+
+    int DirectRead(int, unsigned char *);
+    char * cleanLocks(char *); /* global array lock service */
+
+#include <mumpsc/cgi.h>
+
+    if (argc>1) { // program name
+        strncpy((char *)svPtr->program, argv[1],512);
+        }
+    else strncpy((char *)svPtr->program, argv[0], 512);
+
+    if (argc>=2) {
+        $SymPut("%",argv[1]);
+        }
+    else {
+        $SymPut("%","");
+        }
+
+    if (argc>2) {
+        char t[STR_MAX];
+
+        for (int i=2; i<argc; i++) {
+            sprintf(t,"%%%d",i-1);
+            $SymPut(t,argv[i]);
+            // printf("%d .... %s ..... %s\n",i,t,argv[i]);
+            }
+
+        sprintf(t,"%d",argc-2);
+        $SymPut((char *)"%c",t);
+        $SymPut("%0",argv[1]);
+        }
+
+    if (argc>1 && strlen(argv[1])>0) {
+        strcpy((char *) tmp,argv[1]);
+
+        if (strncmp((char *) tmp,"./",2)==0) {
+            int i;
+
+            for (i=2; tmp[i]; i++)
+                tmp[i-2]=tmp[i];
+
+            tmp[i-2]='\0';
+            }
+
+        strcpy((char *) tmp1,"s %%=\"\"\"^");
+        strcat((char *) tmp1,(char *) tmp);
+        strcat((char *) tmp1, "\"\"\" g @%%");
+        int retcode = Interpret((const char *) tmp1, svPtr);
+        GlobalClose;
+        return retcode;
+        }
+
+    Interpret("w !,\"Mumps " @version@ "; Built: " __TIME__ " " __DATE__ "\n" 
+	floatSize database HardwareMath Ints FltDigits Cache BlkSiz Fpbits
+	"\",!,\"http://threadsafebooks.com/\",!,\"Enter HALT to exit\",!",svPtr);
+
+    char *line ;
+    printf("\n");
+
+    while(1) {
+
+#ifdef NATIVE_STANDALONE
+        btree(CLOSE,tmp0,tmp1,svPtr); // prevent deadlocks
+#endif
+
+        line = readline ("> ");
+
+	if (line == NULL) { // ^d - end of file
+            printf("EOF - goodbye ...\n");
+            Mglobal(CLOSE,tmp0,tmp1,svPtr);  /* Close Globals */
+            Mltoa(getpid(),tmp1);
+            cleanLocks((char *) tmp1);
+            puts("\n");
+            return 0;
+	    }
+
+        if (strlen(line)==0) {
+            free(line);
+            continue;
+            }
+
+        add_history(line);
+
+        if (strcasecmp(line,"h")==0 ||
+                strcasecmp(line,"\\h")==0 ||
+                strcasecmp(line,"\\q")==0 ||
+                strcasecmp(line,"\\quit")==0 ||
+                strcasecmp(line,"halt")==0 ) {
+            printf("EOF - goodbye ...\n");
+            Mglobal(CLOSE,tmp0,tmp1,svPtr);  /* Close Globals */
+            Mltoa(getpid(),tmp1);
+            cleanLocks((char *) tmp1);
+            puts("\n");
+            return 0;
+            }
+
+        if (strcasecmp(line,"\\globals")==0) {
+            char cmd[512];
+            strcpy(cmd,"f i=$o(%globals(i)) w \"name=\",i,\" columns=\",%globals(i),!");
+            Interpret(cmd,svPtr);
+            free(line);
+            printf("\n");
+            continue;
+            }
+
+        if (strncasecmp(line,"\\mumps ",7)==0) {
+            char cmd[512];
+            strcpy(cmd,"shell mumps ");
+            strncat(cmd,&line[7],499);
+            Interpret(cmd,svPtr);
+            free(line);
+            printf("\n");
+            continue;
+            }
+
+        if (strncasecmp(line,"\\sql ",5)==0) {
+            char cmd[512];
+            strcpy(cmd,"sql ");
+            strcat(cmd,&line[5]);
+            free(line);
+            Interpret(cmd,svPtr);
+
+            int c=0,w=0,i,cols[100]= {0};
+            char * p1;
+
+            FILE *p=fopen(svPtr->sqloutput,"r");
+            if (p==NULL) {
+                printf("<empty>\n");
+                continue;
+                }
+
+            while (fgets(cmd,512,p)) {
+                cmd[strlen(cmd)-1]=0;
+                c=0;
+                p1=strtok(cmd,"\t");
+                if (strlen(p1)>cols[c]) cols[c]=strlen(p1);
+                c++;
+
+                while ((p1=strtok(NULL,"\t"))!=NULL) {
+                    if (strlen(p1)>cols[c]) cols[c]=strlen(p1);
+                    c++;
+                    if (c>=100) {
+                        printf("*** Too many columns - truncated.\n");
+                        break;
+                        }
+                    }
+                if (c>=100) break;
+                }
+
+            fclose(p);
+
+            p=fopen(svPtr->sqloutput,"r");
+            if (p==NULL) {
+                printf("<empty>\n");
+                continue;
+                }
+
+            for (i=0; i<c; i++) w=w+cols[i];
+            w=w+2*c+1;
+            for (i=0; i<w; i++) putchar('-');
+            printf("\n");
+
+            while (fgets(cmd,512,p)) {
+                cmd[strlen(cmd)-1]=0;
+                i=1;
+                p1=strtok(cmd,"\t");
+                printf("|%s |",pad(p1,cols[0]));
+
+                while ( (p1=strtok(NULL,"\t") ) != NULL) {
+                    printf("%s |",pad(p1,cols[i]));
+                    i++;
+                    }
+                if (i<c)
+                    while (i<c) {
+                        printf("%s |",pad(" ",cols[i]));
+                        i++;
+                        }
+                printf("\n");
+                }
+
+            for (i=0; i<w; i++) putchar('-');
+            printf("\n");
+
+            fclose(p);
+            remove(svPtr->sqloutput);
+            printf("\n");
+            continue;
+            }
+
+        if (strncasecmp(line,"\\sys ",5)==0) {
+            char cmd[512];
+            strcpy(cmd,"shell ");
+            strncat(cmd,&line[5],500);
+            Interpret(cmd,svPtr);
+            free(line);
+            printf("\n");
+            continue;
+            }
+
+        Interpret(line,svPtr);
+        free(line);
+        printf("\n");
+        }
+    }

@@ -1,0 +1,239 @@
+/*#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+    Mumps Compiler Run-Time Support Functions
+ *#+    Copyright (c) A.D. 2001, 2002, 2017 by Kevin C. O'Kane
+ *#+    okane@cs.uni.edu
+ *#+
+ *#+    This library is free software; you can redistribute it and/or
+ *#+    modify it under the terms of the GNU Lesser General Public
+ *#+    License as published by the Free Software Foundation; either
+ *#+    version 2.1 of the License, or (at your option) any later version.
+ *#+
+ *#+    This library is distributed in the hope that it will be useful,
+ *#+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *#+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *#+    Lesser General Public License for more details.
+ *#+
+ *#+   You should have received a copy of the GNU Lesser General Public
+ *#+    License along with this library; if not, write to the Free Software
+ *#+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *#+
+ *#+    http://www.cs.uni.edu/~okane
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+#ifndef DEFINES_H
+#define DEFINES_H
+
+@floatSize@
+@inlineDef@
+@intLong@
+@readonly@
+@terminate_on_error@
+@serverbuf@
+@client@
+@client_server@
+@standalone@
+@dbtype@
+@cygwin@
+
+#define CodedOpen 206
+#define CodedClose 207
+#define CodedComma 208
+#define CodedColon 209
+
+#define SymStore 0
+#define SymRetrieve 1
+#define SymDeleteExplicit 2
+#define SymNext 3
+#define SymDeleteAll 4
+#define SymDeleteAllExcept 5
+#define SymData 6
+#define SymName 10
+#define SymCPPdata 102
+#define SymMarkCopyFlag 102
+
+#define PGSQL 2
+#define POSTGRESQL 3
+#define NO 0
+#define YES 1
+#define HAVE_SSL_H 0
+#define HAVE_SOCKET_H 0
+#define HAVE_INET_H 0
+#define HAVE_SIGNAL_H 0
+#define HAVE_DB_H 0
+#define HAVE_SEM_H 0
+#define HAVE_SHM_H 0
+#define HAVE_PCRE_H YES
+#define HAVE_BDB 0
+#define HAVE_APPLE 0
+#define HAVE_GCVT YES
+#define HAVE_HTTPD_H 0
+#define HAVE_AP_CONFIG_H 0
+#define HAVE_UTIL_CFGTREE_H 0
+#define HAVE_HTTPD_H 0
+#define HAVE_UNISTD_H YES
+#define HAVE_PCRE_H YES
+#define HAVE_PCRE 1
+#define HAVE_PGSQL_H 0
+#define HAVE_POSTGRESQL 0
+#define HAVE_SSL 0
+#define HAVE_GMP 0
+#define HAVE_MPFR 0
+
+#define RETRIEVE 0
+#define STORE 1
+#define NEXT 2
+#define KILL 3
+#define CLOSE 4
+#define XNEXT 8
+#define PREVIOUS 9
+#define RESTORE 20
+#define FLUSH 21
+// #define CLOSE 22
+#define GLOBAL 23
+
+/*
+        Some of the test code generates
+        random test sequences and then
+        repeats them by reloading the
+        same random number seed. Change
+        SEED to another prime number to
+        generate a different test sequence.
+*/
+
+#define SEED 777
+
+/*
+        The number of iterations to be used by test
+        routines.  Large number will result in longer
+        but more thorough testing.
+*/
+
+#define NBR_ITERATIONS 10000000
+
+#define MMARK 0xff
+#define TRXLIMIT 50000
+#define NEXTMARK 1
+
+#define SymStore 0
+#define SymRetrieve 1
+#define SymDeleteExplicit 2
+#define SymNext 3
+#define SymDeleteAll 4
+#define SymDeleteAllExcept 5
+#define SymData 6
+#define SymName 10
+
+#define PGSQL 2
+#define POSTGRESQL 3
+#define NO 0
+#define YES 1
+#define HAVE_SSL_H 0
+#define HAVE_SOCKET_H 0
+#define HAVE_INET_H 0
+#define HAVE_SIGNAL_H 0
+#define HAVE_DB_H 0
+#define HAVE_SEM_H 0
+#define HAVE_SHM_H 0
+#define HAVE_PCRE_H YES
+#define HAVE_BDB 0
+#define HAVE_APPLE 0
+#define HAVE_GCVT YES
+#define HAVE_HTTPD_H 0
+#define HAVE_AP_CONFIG_H 0
+#define HAVE_UTIL_CFGTREE_H 0
+#define HAVE_HTTPD_H 0
+#define HAVE_UNISTD_H YES
+#define HAVE_PCRE_H YES
+#define HAVE_PCRE 1
+#define HAVE_PGSQL_H 0
+#define HAVE_POSTGRESQL 0
+#define HAVE_SSL 0
+#define HAVE_GMP 0
+#define HAVE_MPFR 0
+// #include <mumpsc/apache.h>
+
+#ifndef LOCK
+#define LOCK 10
+#endif
+
+#define INIT 6
+#define GKILL 3
+#define NEXT 2
+#define OPEN 206
+#define ORDERNEXT 12
+#define ORDERPREV 13
+#define PCLOSE 7
+#define PREVIOUS 9
+#define RETRIEVE 0
+#define STORE 1
+#define UNLOCK 11
+#define XNEXT 8
+#define CCLOSE 15
+#define RESTORE 20
+#define FLUSH 21
+#define SQLCMD 55
+#define SQLREBUILD 56
+
+/* Success/failure values returned by global(). */
+#define GLOBAL_SUCCESS 1
+#define GLOBAL_FAILURE 0
+
+/* Name of file on disk holding global array data. */
+// #define DATABASE "Mumps.DB"  /* kok */
+
+/* Access permissions for the file named in DATABASE. */
+/*    A default of rw-rw-rw- is defined below. */
+#define GBLPERMIT 0666
+
+#define LINEFEED '\012'
+#define CRTN '\15'
+#define CTRLZ '\032'
+
+#define SYMSTORE 0
+#define SYMGET 1
+#define SYMGET_NOLBL 11
+
+#define RETRIEVE 0
+#define PULSE 100
+#define STORE 1
+#define NEXT 2
+#define KILL 3
+#define LOCK 10
+#define UNLOCK 11
+#define INIT 6
+#define XNEXT 8
+#define PREVIOUS 9
+
+#define GPADWIDTH 40
+#define GPADFMT "%c%+040.20lf"
+
+#define SYM_MAX 200 // depth of symbol table stack
+#define PREVIOUS 9
+
+#define DELIM "\\"
+#define BUF_PARSE
+#define STEM
+#define MNORMAL
+
+#define COSINE 1
+#define TRANSPOSE 2
+#define INVDF 3
+#define DICE 4
+#define SCANALNUM 5
+#define SCAN 6
+#define AVG 7
+#define SIM1 8
+#define JACCARD 9
+#define CENTROID 10
+#define TERMCORRELATE 11
+#define COUNT 12
+#define MAX 13
+#define MIN 14
+#define MMULTIPLY 15
+#define SUM 16
+#define DOCCORRELATE 17
+#define GETENV 18
+#define INPUT 19
+
+#endif

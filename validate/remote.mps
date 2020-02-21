@@ -1,0 +1,3 @@
+      zmain
+      write i,!
+      halt

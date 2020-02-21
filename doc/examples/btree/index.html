@@ -1,0 +1,56 @@
+<html>
+<body bgcolor=silver>
+<center>
+Large File Btree Function
+</center>
+<hr>
+February 15, 2004
+<p>
+If you use this code in your work, please cite:
+<p>
+Kevin C. O'Kane, Ph.D.<br>
+University of Northern Iowa<br>
+http://www.cs.uni.edu/~okane<br>
+okane@cs.uni.edu
+<p>
+<table border=1>
+<tr><td>
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
+</table>
+<p>
+These are examples of direct calls to the
+MDH/Mumps native global array handler that can
+support large btrees and data files.  
+The btree tself
+is stored in "key.dat" and may grow to 16 TB or more.  The stored data is in
+"data.dat" and may grow to 2**64 bytes.  Keys
+must be alphanumeric in the ASCII range 32 to 127 inclusive.
+<p>
+To use, follow the examples in this directory
+or see the documentation in the MDH manual.
+<p>
+See the examples in "btest1.c" through "btest8.c" - these
+contain checkout ruotines and also show how to perform
+various operations. The file "checkout" contains the
+Linux script to run  each of the test routines.
+The defined symbol "NBR_ITERATIONS" governs
+how many iterations the test routines will
+make.  This number is typically 100,000 or more.
+iIt is declared in btree.h and btree.h.in
+<p>
+To cycle through successively higher keys, see the example in
+"btest4.c".  To cycle through successively lower keys, see example
+in "btest5.c".	Note: the first key given must be ASCII collating
+sequence lower/higher than the keys your are seeking.  Use blank (32)
+for lowest and ~ (127) for the highest.	 To delete a key, see example
+in "btest8.c" or deleted the key.dat and data.dat files.
+<p>
+Kevin C. O'Kane, Ph.D.<br>
+http://www.cs.uni.edu/~okane<br>
+okane@cs.uni.edu<br>
+<hr>
+</body>
+</html>

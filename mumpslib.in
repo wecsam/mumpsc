@@ -1,0 +1,61 @@
+#!/bin/bash
+
+SHELL=/bin/sh
+INSTALL=install
+VERSION=6.02
+
+PREFIX=@prefix@
+
+FLAGS="@INCLUDEDIR@ @CPPFLAGS@ @LDFLAGS@"
+
+INCLUDEDIR=$PREFIX/include
+BINDIR=$PREFIX/bin
+ARGS=$*
+
+# Change the following to a null string if you do not
+# support 64 bit files:
+
+FILEBITS="-D_FILE_OFFSET_BITS=64"
+MUMPS_COMPILER=$BINDIR/mumps2c
+
+echo
+
+for var in $* 
+      do
+      if [ $var = "--help" -o $var = "-h" -o $var = "-?" -o $var = "-v" -o $var = "--ver" ]
+            then
+            mumps2c -v
+            echo "Copyrights: (see individual modules for details)"
+            echo "  Copyright (c) 2000, 2001, 2002 by Kevin C. O'Kane"
+            echo "  Copyright (c) 2002 by Matthew J. Lockner"
+            echo "  Copyright (c) 2002 by Michael D. Janssen"
+            echo "License: GNU GPL and GNU LGPL (see individual modules)"
+            echo
+            echo "mumpslib filename.mps"
+            echo
+            exit
+            fi
+      done
+
+for arg in $ARGS
+do
+    base=`basename $arg`
+    ext=${base#*.}
+
+    if [ $ext = 'mps' ]
+    then
+
+	infile_dir=`dirname $arg`
+	infile_base=`basename $arg .mps`
+	infile="$infile_dir/$infile_base"
+
+echo infile_base
+
+	$MUMPS_COMPILER $infile.mps
+
+      cc $FLAGS -o $infile.o -c -shared -D_REENTRANT -fPIC $FILEBITS $infile.c 
+      cc -shared -Wl,-soname,lib$infile_base.so -o lib$infile_base.so $infile.o 
+	fi
+done
+
+exit 0

@@ -1,0 +1,392 @@
+
+How to use this Index
+"blank.html" target=right
+
+. Overview
+. "howto.html" target=right
+
+Mumps Project
+"blank.html" target=right
+
+. Software License
+. "blank.html" target=right
+
+.. License Overview
+.. "license/licenseoverview.html" target=right
+
+.. License Declarations
+.. "license/license.html" target=right
+
+.. GNU GPL License
+.. "license/gpl.html" target=right
+
+.. GNU LGPL License
+.. "license/lgpl.html" target=right
+
+.. GNU FDL License
+.. "license/fdl.html" target=right
+
+. The Mumps Language
+. "blank.html" target=right
+
+.. Mumps History
+.. "blank.html" target=right
+
+... Origins
+... "mumps.history/history.html" target=right
+
+... Standards
+... "mumps.history/standards.html" target=right
+
+... VA DHCP
+... "mumps.history/dhcp.html" target=right
+
+.. Mumps Data Base
+.. "blank.html" target=right
+
+... Tree Structured
+... "language/tree.html" target=right
+
+... Table Structured
+... "language/table.html" target=right
+
+... Medical Tree
+... "language/medtree.jpg" target=right
+
+... Performance
+... "language/dbspeed.html" target=right
+
+.. Mumps Language
+.. "blank.html" target=right
+
+... Mumps Language Reference
+... "language/language.html" target=right
+
+. Mumps Compiler
+. "blank.html" target=right
+
+.. Overview
+.. "m.compiler/isrover.html" target=right
+
+.. Compiler History
+.. "m.compiler/milestones.html" target=right
+
+.. Configuration
+.. "m.compiler/t992.html" target=right
+
+.. Features
+.. "m.compiler/t994.html" target=right
+
+.. Documentation
+.. "m.compiler/compiler.html" target=right
+
+.. Source Code
+.. "http://fianna.cs.uni.edu/~okane/cgi-bin/compiler/index.cgi" target=right
+
+. Mumps Interpreter
+. "blank.html" target=right
+
+.. Overview
+.. "m.interpreter/overview.html" target=right
+
+.. Manual
+.. "m.interpreter/interpreter.htm" target=right
+
+.. Source Code
+.. "http://fianna.cs.uni.edu/~okane/cgi-bin/interpreter/index.cgi" target=right
+
+. Mumps Applications
+. "blank.html" target=right
+
+.. Information Retrieval
+.. "blank.html" target=right
+
+... IR Overview
+... "blank.html" target=right
+
+.... Abstract
+.... "isr.overview/mumps.abstract.html" target=right
+
+.... Articles
+.... "isr.overview/articles.html" target=right
+
+.... Vector Space Model
+.... "isr.overview/vspace.html" target=right
+
+.... Query Processing
+.... "isr.overview/vspacea.html" target=right
+
+.... Document Clusters
+.... "isr.overview/vspaceb.html" target=right
+
+.... Cosine Coefficients
+.... "isr.overview/vspacec.html" target=right
+
+.... Other Similarity Fcns
+.... "isr.overview/sims.html" target=right
+
+.... Weighting Fcns
+.... "isr.overview/weight.html" target=right
+
+.... Intermediate Matrices
+.... "isr.overview/matrices.html" target=right
+
+.... CDV Vectors
+.... "isr.overview/docvect.html" target=right
+
+.... Efficiency
+.... "isr.overview/vaeff.html" target=right
+
+.... Code Size
+.... "isr.overview/codesize.html" target=right
+
+... Document Based Retrieval
+... "blank.html" target=right
+
+.... Overview
+.... "small.isr/overview.html" target=right
+
+.... Indexing Outline
+.... "small.isr/sindexing.html" target=right
+
+.... Example of Input
+.... "small.isr/input.sml" target=right
+
+.... Read Phase Results
+.... "small.isr/reader.lst" target=right
+
+.... MCA Weighting Results
+.... "small.isr/mca.lst" target=right
+
+.... Pruning Results
+.... "small.isr/prune.lst" target=right
+
+.... Doc Vectors Results
+.... "small.isr/normal.lst" target=right
+
+.... Doc-Doc Matrix
+.... "small.isr/dd2.lst" target=right
+
+.... DocDoc Code Example
+.... "small.isr/dd2.mps" target=right
+
+.... Term-Term Matrix
+.... "small.isr/ttx.lst" target=right
+
+.... 1st Order Phrases
+.... "small.isr/phrase.lst" target=right
+
+.... 2nd Order Phrases
+.... "small.isr/phrase3.lst" target=right
+
+.... Enhanced Vocabulary
+.... "small.isr/vocab3.lst" target=right
+
+.... Live Demo
+.... "small.isr/t1a.cgi?prog=tmps&ml=1" target=right
+
+... Web Based Retrieval
+... "blank.html" target=right
+
+.... Overview
+.... "isr.web/overview.html" target=right
+
+.... Outline
+.... "isr.web/lindexing.html" target=right
+
+.... Input
+.... "isr.web/input.sample" target=right
+
+.... Reader
+.... "isr.web/reader.lst" target=right
+
+.... Doc Vectors
+.... "isr.web/normal.lst" target=right
+
+.... Query Code
+.... "isr.web/query.mps" target=right
+
+.... DD Code
+.... "isr.web/dd2.mps" target=right
+
+.... Live Demo
+.... "isr.web/" target=right
+
+.. Medical Applications
+.. "blank.html" target=right
+
+... Overview
+... "blank.html" target=right
+
+.... Overview
+.... "med.overview/overview.html" target=right
+
+.... Tradition
+.... "med.overview/old.html" target=right
+
+.... Scope of Problem
+.... "med.overview/scope.html" target=right
+
+.... Current Systems
+.... "med.overview/prob.html" target=right
+
+.... Knowledge Base
+.... "med.overview/kb.html" target=right
+
+.... Subject Areas
+.... "med.overview/medinf1.html" target=right
+
+.... Topics
+.... "med.overview/topics.html" target=right
+
+.... Data Base
+.... "blank.html" target=right
+
+..... Tree Structured
+..... "language/tree.html" target=right
+
+..... Table Structured
+..... "language/table.html" target=right
+
+..... Medical Tree
+..... "language/medtree.jpg" target=right
+
+... Applications
+... "blank.html" target=right
+
+.... RDBMS Browser
+.... "blank.html" target=right
+
+..... Overview
+..... "med.projects/db.compile/overview.html" target=right
+
+..... Demo
+..... "med.projects/db.compile/" target=dbms
+
+..... Source Code
+..... "med.projects/db.compile/ftp/" target=right
+
+.... Limited Browser
+.... "blank.html" target=right
+
+..... Overview
+..... "med.projects/browser.compile.limited/techreport.html" target=right
+
+..... Demo
+..... "med.projects/browser.compile.limited/t1a.cgi" target=right
+
+..... Source
+..... "med.projects/browser.compile.limited/ftp/" target=right
+
+.... Old Patient Hx
+.... "blank.html" target=right
+
+..... Overview
+..... "med.projects/full.pat.hx/overview.html" target=right
+
+..... Demo
+..... "med.projects/full.pat.hx/history.cgi" target=right
+
+..... Source Code
+..... "med.projects/full.pat.hx/ftp/" target=right
+
+.... New Patient Hx
+.... "blank.html" target=right
+
+..... Overview
+..... "med.projects/new.pat.hx/overview.html" target=right
+
+..... Demo
+..... "med.projects/new.pat.hx/quiz.cgi?array=patient&id=100&file=new.tab" target=right
+
+..... Source Code
+..... "med.projects/new.pat.hx/ftp/" target=right
+
+.... EMR
+.... "blank.html" target=right
+
+..... Overview
+..... "med.projects/ptrecsys/overview.html" target=right
+
+..... Demo
+..... "med.projects/ptrecsys/flow2.cgi?ptid=0&D=10" target=right
+
+.... Protocol Browser
+.... "blank.html" target=right
+
+..... Overview and Demo
+..... "med.projects/browser.original/browser.html" target=right
+
+.... Special Interfaces
+.... "blank.html" target=right
+
+..... Overview
+..... "med.projects/specinterfaces.html" target=right
+
+..... Java Interface
+..... "med.projects/java.html" target=right
+
+..... Prolog Interface
+..... "med.projects/prolog.html" target=right
+
+.. Web Applications
+.. "blank.html" target=right
+
+... Web Folders
+... "blank.html" target=right
+
+.... Overview
+.... "webtools/netfolders/overview.html" target=right
+
+.... Source Code
+.... "webtools/netfolders/" target=right
+
+Other Projects
+"blank.html" target=right
+
+. The First Laptop?
+. "blank.html" target=right
+
+.. Overview
+.. "papers/laptop/overview.html" target=right
+
+.. Paper
+.. "papers/laptop/" target=right
+
+. Protocol Based Systems
+. "blank.html" target=right
+
+.. Overview
+.. "med.projects/protocols/overview.html" target=right
+
+.. Paper 1
+.. "papers/medinformatics1980/" target=right
+
+Resumes and Bibliography
+"blank.html" target=right
+
+. Kevin O'Kane
+. "resume/res6a.html" target=right
+
+Download Everything
+"blank.html" target=right
+
+. What is this?
+. "downloadall.html" target=right
+
+. Download All Files
+. "newpres.tar.gz" target=right
+
+. Why?
+. "why.html" target=right
+
+Related Pages
+"blank.html" target=right
+
+. Kevin O'Kane's Home Page
+. "http://fianna.cs.uni.edu/~okane/rindex.html" target=_top
+
+. CS Department Home Page
+. "http://www.cs.uni.edu" target=_top
+
+

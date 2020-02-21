@@ -1,0 +1,4 @@
+REM
+REM Compile C++ programs using the MDH library
+REM
+gpp -O3 %1.cpp -o %1.exe -I @dosprefix@\include -lm -L@dosprefix@\lib -lmpscpp -lmumps -lmpsglobal_native -lpcre

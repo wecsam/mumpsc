@@ -1,0 +1,6 @@
+#!/bin/bash
+
+echo "don't use this - it is not functional"
+
+exit
+configure --with-mysqldb --with-mysql-host=127.0.0.1 --with-dbname=mumps --with-msvc

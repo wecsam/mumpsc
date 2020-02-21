@@ -1,0 +1,52 @@
+#!/bin/bash
+
+if [ "$OSTYPE" != "cygwin" ]; then
+	
+	if [ `whoami` != "root" ]; then
+        	echo "**** you must be root to run this script"
+        	exit
+        	fi
+else
+        rm -f /usr/bin/mumps2c
+        rm -f /usr/bin/mumps
+fi
+
+# these builds MUST be done in this order
+
+# build server 
+
+./configure prefix=/usr --with-hardware-math --with-client-server --with-cache=131073 --with-server-buf=1024 --with-slice=100 || exit
+# ./configure prefix=/usr --with-client-server --with-cache=131073 --with-server-buf=1024 --with-slice=100 || exit
+
+rm -f *.o
+make -j 4 || exit 
+make install || exit
+
+make server || exit
+
+# build client libraries and interpreter
+
+./configure prefix=/usr --with-hardware-math --with-client-server --with-client --with-cache=131073 --with-server-buf=1024  || exit
+# ./configure prefix=/usr --with-client-server --with-client --with-cache=131073 --with-server-buf=1024  || exit
+
+rm -f *.o
+make -j 4 || exit
+make install
+
+echo "*********************************************************************************"
+echo "* This version of Mumps requires you to start the database server which"
+echo "* is located in /etc/mumps. To start it, as root, switch to this directory
+echo "* (you MUST be in /etc/mumps) and type:"
+echo
+echo "* mumpsd"
+echo
+echo "* If you want to start with a fresh database, delete the files data.dat and"
+echo "* key.dat before running mumpsd. You should keep mumpsd running as long as"
+echo "* there are any Mumps programs running that access the global arrays."
+echo "* If a Mumps program never accesses the global arrays, mumpsd is not needed."
+echo
+echo "* You may exit mumpsd with a control-c"
+echo "* if you start mumpsd in the backgound (with an &), you should redirect it's"
+echo "* output to a log file to record any messages. You may halt it with: kill -2 pid"
+echo "*********************************************************************************"
+

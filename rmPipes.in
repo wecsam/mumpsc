@@ -1,0 +1,16 @@
+#!/bin/bash
+mdir=@serverdir@
+
+rm -f $mdir/mps0
+rm -f $mdir/mps1
+rm -f $mdir/mps2
+rm -f $mdir/mps3
+rm -f $mdir/mps4
+rm -f $mdir/mps5
+
+rm -f $mdir/rmps0
+rm -f $mdir/rmps1
+rm -f $mdir/rmps2
+rm -f $mdir/rmps3
+rm -f $mdir/rmps4
+rm -f $mdir/rmps5

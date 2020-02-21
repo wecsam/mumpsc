@@ -1,0 +1,31 @@
+#!/bin/bash
+mdir=@serverdir@
+mkfifo $mdir/mps0
+mkfifo $mdir/mps1
+mkfifo $mdir/mps2
+mkfifo $mdir/mps3
+mkfifo $mdir/mps4
+mkfifo $mdir/mps5
+
+mkfifo $mdir/rmps0
+mkfifo $mdir/rmps1
+mkfifo $mdir/rmps2
+mkfifo $mdir/rmps3
+mkfifo $mdir/rmps4
+mkfifo $mdir/rmps5
+
+chmod a+rw $mdir/mps0
+chmod a+rw $mdir/mps1
+chmod a+rw $mdir/mps2
+chmod a+rw $mdir/mps3
+chmod a+rw $mdir/mps4
+chmod a+rw $mdir/mps5
+
+chmod a+rw $mdir/rmps0
+chmod a+rw $mdir/rmps1
+chmod a+rw $mdir/rmps2
+chmod a+rw $mdir/rmps3
+chmod a+rw $mdir/rmps4
+chmod a+rw $mdir/rmps5
+
+

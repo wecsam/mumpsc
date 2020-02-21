@@ -1,0 +1,263 @@
+#!/bin/bash
+
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#+
+#+     Mumps Bioinformatics Software Library
+#+     Copyright (C) 2015 by Kevin C. O'Kane
+#+
+#+     Kevin C. O'Kane
+#+     kc.okane@gmail.com
+#+     http://www.cs.uni.edu/~okane
+#+     http://threadsafebooks.com/
+#+
+#+ This program is free software; you can redistribute it and/or modify
+#+ it under the terms of the GNU General Public License as published by
+#+ the Free Software Foundation; either version 2 of the License, or
+#+ (at your option) any later version.
+#+
+#+ This program is distributed in the hope that it will be useful,
+#+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#+ GNU General Public License for more details.
+#+
+#+ You should have received a copy of the GNU General Public License
+#+ along with this program; if not, write to the Free Software
+#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# this file MUST be run as root
+# this file MUST be run as root
+# this file MUST be run as root
+
+if [ "$OSTYPE" == "cygwin" ]; then
+	echo "This script is not suitable for Cygwin"
+	exit
+	fi
+
+if [ `whoami` != "root" ]; then
+	echo
+	echo "****************************************"
+	echo "**** you must be root to run this script"
+	echo "****************************************"
+	echo
+	exit
+	fi
+
+# this file will install (if needed) PostgreSQL and configure
+# it and mumps.
+
+# This file was developed and tested using Linux Mint 17.2 and should be 
+# compatible with related Ubuntu based systems.
+
+# You should use this on a system that does not have PostgreSQL. 
+# If your system has PostgreSQL this should work fine but if
+# your system has a comples PostgreSQL database, you may want
+# to consult your sysadmin and/or database admin before running
+# it.
+
+# This code is provided with no warranty as per the GPL license.
+
+# configure PostgreSQL for Mumps usage
+
+# required software packages (xx.x == 9.3 or above):
+
+#	postgresql
+#	postgresql-client-xx.x
+#	postgresql-server-dev-xx.x
+#	libpq-dev
+#	libpq5
+#	postgresql-client-common
+#	postgresql-common
+#	postgresql-doc-xx.x (optional)
+
+# PostgreSQL as of this writing places it's clusters, by default, in
+# 	/var/lib/postgresql/9.3/main
+
+# The current version number is 9.3
+
+# Future releases will probably use on numbers 9.4, 9.5, ...
+
+# At present, the PostgreSQL software is located in
+#	/usr/lib/postgresql
+
+# This is not likely to change but it is possible.
+# The presecnce of this directory is used to determine if
+# PostgreSQL is installed or not. If these are inaccurate, the
+# install will not work correctly.
+
+# Adjust the following appropriately.
+
+SOFTWAREROOT="/usr/lib/postgresql"
+CLUSTERROOT="/var/lib/postgresql"
+NAME=main
+VERSION=9.3
+
+# check if PostgreSQL is installed. If not, install it.
+
+echo
+echo "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+echo "Grand general Mumps PosgreSQL instalerizer."
+echo "This script will install, as needed, PosgreSQL, g++,"
+echo "autoconf, libccre-dev and Mumps."
+echo "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+echo
+
+APTUPDATE=0
+
+echo
+echo "You will be asked for the PostgreSQL root password."
+echo "The default is abc123. You may change this later."
+echo
+echo "You will also be asked to provide a password for"
+echo "user mumps (default abc123). This also may be changed."
+echo
+echo "You will see many messages. The final message is the one that counts."
+echo "If you see: ***Done - it worked! it is likely that everything installed correctly."
+echo
+echo "If system software is installed, there may be long pauses as files"
+echo "are retrieved from servers. Please wait or, if you want, get frustrated,"
+echo "hit ctrl-c a lot and crash your system."
+echo
+
+	echo "--------------------------------------------"
+	echo
+	echo "Installing Postgresql"
+	echo
+	echo "--------------------------------------------"
+	echo
+
+	apt-get update
+	apt-get -y install postgresql
+	apt-get -y install libpq-dev
+	apt-get -y install libpq5 
+	apt-get -y install postgresql-doc-$VERSION
+
+	# set a password for user postgres
+	# replace 'abc123' to something you want.
+	# note: these lines must begin in column 1 because
+	# of the input method.
+
+# if new installation - give user 'postgres' a password (abc123)
+# change 'abc123' to something else for a secure implementation.
+
+echo
+echo "If this is a new installation of PostgreSQL, we need to set a password for user 'postgres'"
+echo "If this is an existing installation, we need to know the password for user 'postgres'"
+echo
+read -p "What is the new or existing PostgreSQL 'postgres' user password? (abc123) " pass
+
+if [ -z $pass ]; then
+        pass=abc123
+        fi
+
+echo
+echo "The password for PostgreSQL root is $pass"
+
+        while true; do
+                echo
+                read -p "Is $pass the correct password for PostgreSQL user 'postgres'? (y/n) " yn
+                case $yn in
+                        [Yy]* ) break;;
+             		[Nn]* ) read -p "Enter the correct PostgreSQL 'postgres' password " pass ;;
+                        * ) echo "Please answer yes or no.";;
+                        esac
+                done
+
+	echo
+	read -p "Is this an existing PostgreSQL installation? (y/n) " yn
+	echo
+
+        case $yn in
+             [Yy]* ) 	;;
+             [Nn]* ) 	echo -e "$rpass\n$rpass" > tmp.tmp
+			passwd postgres < tmp.tmp
+			rm tmp.tmp
+			;;
+             * ) 	echo "Please answer yes or no.";;
+             esac
+
+# check if the PostgreSQL clusters exist in the default location.
+# modify if they are in a different location or have other names.
+# build cluster if needed and set PostgreSQL to start automatically
+
+if [ ! -d "$CLUSTERROOT/$VERSION" ]; then
+
+	# see defaults in 'man pg_createcluster'
+	# create new cluster
+
+	/usr/bin/pg_createcluster --start --start-conf auto $VERSION $NAME
+	fi
+
+# login as postgres and run the commands through 'EOF'
+# these do the following:
+# remove any prior mumps database
+# remove any prior mumps user
+# create a mumps user with the password 'abc123'
+# drop any prior user 'okane' (use your login name)
+# create your login with a password 'abc123'
+# create the mumps database to be owned by user mumps.
+# the password 'abc123' may/should be changed.
+# if changed for user mumps, it must also be changed in
+# BuildMumpsWithGlobalsIn PostgreSQL.script
+
+# some minor error messages may occur but usually can be ignored.
+
+MumpsPassword=abc123
+
+echo
+echo "Creating a PostgreSQL user named 'mumps'"
+read -p "What should we set the PostgreSQL 'mumps' password to be? (abc123) " MumpsPassword
+
+if [ -z $MumpsPassword ]; then
+        MumpsPassword=abc123
+        fi
+
+echo $MumpsPassword
+
+echo
+read -p "Some error messages may appear regarding dropping tables - ignore. Hit enter to continue" x
+echo
+
+echo "#!/bin/bash" > tmp.tmp
+echo "su postgres << EOF" >> tmp.tmp
+echo -e "psql -c \"drop database if exists mumps;\"" >> tmp.tmp
+echo -e "psql -c \"drop user if exists mumps;\"" >> tmp.tmp
+echo -e "psql -c \"create user mumps superuser password '$MumpsPassword';\"" >> tmp.tmp
+echo -e "psql -c \"drop user if exists okane;\"" >> tmp.tmp
+echo -e "psql -c \"create user okane superuser password '$MumpsPassword';\"" >> tmp.tmp
+echo -e "psql -c \"create database mumps owner mumps;\"" >> tmp.tmp
+echo "EOF" >> tmp.tmp
+chmod u+x tmp.tmp
+./tmp.tmp
+
+# compile and install mumps for PostgreSQL
+# edit configurations for mumps as needed in this file especially
+# passwords and host IP number. see ReadMe.pdf
+
+	apt-get -q -y install autoconf 
+	apt-get -q -y astyle
+
+	apt-get -q -y install libreadline6-dev
+
+	apt-get -q -y install libpcre3 
+	apt-get -q -y install libpcre3-dev 
+
+	apt-get -q -y install g++ 
+	apt-get -q -y install gcc-doc 
+
+        apt-get -q -y install libgmp-dev
+        apt-get -q -y install libmpfr-dev
+
+
+./BuildMumpsWithGlobalsInPostgreSQL.script $MumpsPassword
+
+# create a small mumps program in file gblinit.mps
+
+echo -e "	w \"init database\",!\n	sql/f test 5\n	set ^test(1)=99\n	w \"***if you see 99 it worked: \",^test(1),!" > gblinit.mps
+
+# run the program - it will initialize the mumps database
+
+./mumps gblinit.mps 
+
+# done

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Build client libraries - see buildClientServer.script for full builds
+# This is used for development/debugging
+
+./configure prefix=/usr --with-client --with-cache=9 --with-server-buf=1024 || exit
+make || exit
+make install

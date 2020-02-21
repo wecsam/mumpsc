@@ -1,0 +1,262 @@
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <errno.h>
+#include <stdlib.h>
+
+#include <mumpsc/libmpscpp.h>
+
+@serverbuf@
+
+// global A("A");
+
+char * logtime() {
+	time_t t; 
+	static char tm[64];
+	time(&t); 
+	strcpy(tm,ctime(&t)); 
+	tm[strlen(tm)-1]=0;
+	return tm;
+	}
+
+int main(int argc, char * argv[]) {
+
+int e,fdes0,fdes1,fdes2,fdes3,fdes4,fdes5;
+int rfdes=1000;
+struct pollfd fds[6];
+int connect[6] = {0};
+char buf0[SERVERBUF+1], buf1[SERVERBUF];
+int sigint(int);
+unsigned int Flush=0;
+FILE *Journal;
+char journal[1024];
+int jflag=0;
+
+printf("Server started\n");
+
+for(int i=0; i< argc; i++) {
+	if (strcmp(argv[i],"-j")==0) {
+		if (argc>=i+2) {
+			strcpy(journal,argv[i+i]);
+			jflag=1;
+			}
+		else {
+			printf("incorrectly specified journal\n");
+			return 0;
+			}
+		}
+	}
+
+if (jflag) {
+	Journal=fopen(journal,"a");
+	if (Journal == NULL ) { 
+		printf("Journal error\n"); 
+		return EXIT_FAILURE; 
+		}
+	printf("%s journal started...\n",journal);
+	}
+
+system("./rmPipes");
+system("./makePipes");
+
+fdes0=open("@serverdir@" "/mps0",O_RDONLY | O_NONBLOCK);
+fdes1=open("@serverdir@" "/mps1",O_RDONLY | O_NONBLOCK);
+fdes2=open("@serverdir@" "/mps2",O_RDONLY | O_NONBLOCK);
+fdes3=open("@serverdir@" "/mps3",O_RDONLY | O_NONBLOCK);
+fdes4=open("@serverdir@" "/mps4",O_RDONLY | O_NONBLOCK);
+fdes5=open("@serverdir@" "/mps5",O_RDONLY | O_NONBLOCK);
+
+if (fdes0 < 0) { printf("@serverdir@" "/mps0 error\n"); return EXIT_FAILURE; }
+if (fdes1 < 0) { printf("@serverdir@" "/mps1 error\n"); return EXIT_FAILURE; }
+if (fdes2 < 0) { printf("@serverdir@" "/mps2 error\n"); return EXIT_FAILURE; }
+if (fdes3 < 0) { printf("@serverdir@" "/mps3 error\n"); return EXIT_FAILURE; }
+if (fdes4 < 0) { printf("@serverdir@" "/mps4 error\n"); return EXIT_FAILURE; }
+if (fdes5 < 0) { printf("@serverdir@" "/mps5 error\n"); return EXIT_FAILURE; }
+
+printf("%s 6 incoming pipes established\n",logtime());
+
+fds[0].fd=fdes0;
+fds[1].fd=fdes1;
+fds[2].fd=fdes2;
+fds[3].fd=fdes3;
+fds[4].fd=fdes4;
+fds[5].fd=fdes5;
+
+fds[0].events=POLLIN | POLLHUP ;
+fds[1].events=POLLIN | POLLHUP ;
+fds[2].events=POLLIN | POLLHUP ;
+fds[3].events=POLLIN | POLLHUP ;
+fds[4].events=POLLIN | POLLHUP ;
+fds[5].events=POLLIN | POLLHUP ;
+
+printf("%s Begin listening....\n",logtime());
+
+while (1) {
+
+	e=poll(fds,6,-1); // indefinite wait
+
+	for (int n=0; n<6; n++) {
+
+		if (fds[n].revents) {
+
+			if (fds[n].revents & POLLHUP) {
+
+				printf("%s Hangup received from pipe %d\n",logtime(),n);
+
+				if (n==0) {
+					close(fdes0);
+					connect[n]=0;
+					close(rfdes);
+					fdes0=open("@serverdir@" "/mps0",O_RDONLY | O_NONBLOCK);
+					if (fdes0 < 0 ) { 
+						printf("Pipe error\n");
+						sigint(100);
+						}
+					if (! (fds[n].revents & POLLIN) ) continue;
+					}
+
+				if (n==1) {
+					close(fdes1);
+					close(rfdes);
+					connect[n]=0;
+					fdes1=open("@serverdir@" "/mps1",O_RDONLY | O_NONBLOCK);
+					if (fdes1 < 0 ) { 
+						printf("Pipe error\n");
+						sigint(100);
+						}
+					if (! (fds[n].revents & POLLIN) ) continue;
+					}
+
+				if (n==2) {
+					close(fdes2);
+					close(rfdes);
+					connect[n]=0;
+					fdes2=open("@serverdir@" "/mps2",O_RDONLY | O_NONBLOCK);
+					if (fdes2 < 0 ) { 
+						printf("Pipe error\n");
+						sigint(100);
+						}
+					if (! (fds[n].revents & POLLIN) ) continue;
+					}
+
+				if (n==3) {
+					close(fdes3);
+					close(rfdes);
+					connect[n]=0;
+					fdes3=open("@serverdir@" "/mps3",O_RDONLY | O_NONBLOCK);
+					if (fdes3 < 0 ) { 
+						printf("Pipe error\n");
+						sigint(100);
+						}
+					if (! (fds[n].revents & POLLIN) ) continue;
+					}
+
+				if (n==4) {
+					close(fdes4);
+					close(rfdes);
+					connect[n]=0;
+					fdes4=open("@serverdir@" "/mps4",O_RDONLY | O_NONBLOCK);
+					if (fdes4 < 0 ) { 
+						printf("Pipe error\n");
+						sigint(100);
+						}
+					if (! (fds[n].revents & POLLIN) ) continue;
+					}
+
+				if (n==5) {
+					close(fdes5);
+					close(rfdes);
+					connect[n]=0;
+					fdes5=open("@serverdir@" "/mps5",O_RDONLY | O_NONBLOCK);
+					if (fdes5 < 0 ) { 
+						printf("Pipe error\n");
+						sigint(100);
+						}
+					if (! (fds[n].revents & POLLIN) ) continue;
+					}
+				}
+
+			if (!connect[n]) {
+				printf("%s New connection from %d\n",logtime(),n);
+				connect[n]=1;
+				}
+
+			read(fds[n].fd,buf0,SERVERBUF);
+
+			read(fds[n].fd,buf1,SERVERBUF);
+
+			if (jflag) {
+				if (buf0[0]==STORE) 
+					fprintf(Journal,"%d %s\n%s\n",(int)buf0[0],&buf0[1],buf1);
+				else if (buf0[0]==KILL) 
+					fprintf(Journal,"%d %s\n",(int)buf0[0],&buf0[1]);
+				}
+
+			e=Mglobal((int)buf0[0], (unsigned char *) &buf0[1], (unsigned char *) buf1, svPtr);
+
+			buf0[0]=e;
+
+			if (n==0) {
+				rfdes=open("@serverdir@" "/rmps0",O_WRONLY );
+				if (rfdes<0) {
+					printf("open failed to output pipe %d msg=%d\n",n,errno);
+					sigint(100);
+					}
+				}
+
+			if (n==1) {
+				rfdes=open("@serverdir@" "/rmps1",O_WRONLY );
+				if (rfdes<0) {
+					printf("open failed to output pipe %d msg=%d\n",n,errno);
+					sigint(100);
+					}
+				}
+
+			if (n==2) {
+				rfdes=open("@serverdir@" "/rmps2",O_WRONLY );
+				if (rfdes<0) {
+					printf("open failed to output pipe %d msg=%d\n",n,errno);
+					sigint(100);
+					}
+				}
+
+			if (n==3) {
+				rfdes=open("@serverdir@" "/rmps3",O_WRONLY );
+				if (rfdes<0) {
+					printf("open failed to output pipe %d msg=%d\n",n,errno);
+					sigint(100);
+					}
+				}
+
+			if (n==4) {
+				rfdes=open("@serverdir@" "/rmps4",O_WRONLY );
+				if (rfdes<0) {
+					printf("open failed to output pipe %d msg=%d\n",n,errno);
+					sigint(100);
+					}
+				}
+
+			if (n==5) {
+				rfdes=open("@serverdir@" "/rmps5",O_WRONLY );
+				if (rfdes<0) {
+					printf("open failed to output pipe %d msg=%d\n",n,errno);
+					sigint(100);
+					}
+				}
+
+			write(rfdes,buf0,SERVERBUF); // write back
+			write(rfdes,buf1,SERVERBUF);
+			close(rfdes);
+			}
+		}
+	}
+
+GlobalClose;
+
+return 0;
+}
+

@@ -1,0 +1,156 @@
+#
+#	make
+#	make server
+#
+#	make install
+#
+
+SHELL       = /bin/sh
+INSTALL     = install
+PREFIX	= @prefix@
+CC	= gcc
+CXX	= g++
+# VERSION = @VERSION@
+VERSION = `cat VERSION`
+
+INCLUDEDIR  = $(PREFIX)/include
+BINDIR      = $(PREFIX)/bin
+LIBDIR      = $(PREFIX)/lib
+SHARE       = $(PREFIX)/share
+DOCDIR      = $(PREFIX)/share/doc/mumpsc
+MANDIR      = $(PREFIX)/share/man
+MAN1DIR     = $(MANDIR)/man1
+SRCDIR      = mumpsc
+
+MUMPS2C_OBJS    = mumps.o parse.o sys1.o
+
+LIBMUMPS_OBJS   = arith.o bifs.o bstring.o interp.o pm.o \
+                  stem.o strmanip.o sym.o sysfunc.o lock.o bmgsubs.o
+
+LIBMPSCPP_OBJS = libmpscpp.o
+
+LIBPCRE_OBJS = parse.o get.o
+
+CFLAGS    = -w @file64@ -O3 -DMUMPS_SYM -Iinclude/ @LDFLAGS@ -finline-functions @mysql_cflags@
+
+CPPFLAGS    = -w -DMUMPS_SYM @use_postgres@ -Iinclude/ @file64@ -O3 @mysql_cppflags@ -lgmp @profile@
+
+HEADERS   = include/mumpsc/*.h
+
+BINARIES  = @mumps2c@
+
+LIBRARIES = libmumps.a libmpsglobal_native.a libmpscpp.a
+
+all: $(BINARIES) $(LIBRARIES)
+
+############################################################################
+#                                  Binaries                                #
+############################################################################
+
+@mumps2c@: $(MUMPS2C_OBJS)
+	$(CC) -o mumps2c $(MUMPS2C_OBJS)
+
+############################################################################
+#                                 Libraries                                #
+############################################################################
+
+libmpscpp.a: $(LIBMPSCPP_OBJS)
+	$(AR) rcs libmpscpp.a $(LIBMPSCPP_OBJS)
+
+libmumps.a: $(LIBMUMPS_OBJS)
+	$(AR) rcs libmumps.a $(LIBMUMPS_OBJS)
+
+libmpsglobal_native.a: globalb.o btree.o
+	$(AR) rcs libmpsglobal_native.a globalb.o btree.o
+
+############################################################################
+
+install: install-common
+
+install-common:
+	$(INSTALL) -d        $(PREFIX)
+	$(INSTALL) -d        $(BINDIR)
+	$(INSTALL) -d        $(INCLUDEDIR)
+	$(INSTALL) -d        $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -d        $(SHARE)
+	$(INSTALL) -d        $(SHARE)/doc/
+	$(INSTALL) -d        $(SHARE)/man/
+	$(INSTALL) -d        $(MANDIR)
+	$(INSTALL) -d        $(MAN1DIR)
+	$(INSTALL) -d        $(LIBDIR)
+	$(INSTALL) -d        $(DOCDIR)
+	$(INSTALL) -m 755 @bin_install@ $(BINARIES)               $(BINDIR)
+	$(INSTALL) -m 755    mumpsc                    $(BINDIR)
+	$(INSTALL) -m 755    mumpslib                  $(BINDIR)
+	$(INSTALL) -m 644    $(LIBRARIES)              $(LIBDIR)
+
+@pcre_install@
+
+	$(INSTALL) -m 644    include/mumpsc/arith.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/bifs.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/bstring.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/btree.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/builtin.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/cgi.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/config.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/cppsysfunc.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/externs.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/fcns.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/defines.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/global.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/globalOrder.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/globalvars.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/interp.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/keyfix.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/compiler.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/libmpscpp.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/libmpsrdbms.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/memsize.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/numSetupDefines.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/numSetup.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/pm.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/stateVector.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/stem.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/strmanip.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/strmax.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/strmove.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/sym.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/sysfunc.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/sysparms.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/symbasic.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/builtinTable.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    doc/MDH.pdf $(DOCDIR)
+	$(INSTALL) -m 644    doc/MumpsTutorial.pdf $(DOCDIR)
+	$(INSTALL) -m 644    doc/ReadMe.pdf $(DOCDIR)
+
+	$(INSTALL) -d        $(DOCDIR)/examples/
+	$(INSTALL) -d        $(MAN1DIR)
+	$(INSTALL) -m 644    doc/mumpsc.1 $(MANDIR)
+	$(INSTALL) -m 644    mumpsc.bat  $(BINDIR)
+	$(INSTALL) -m 644    mdh.bat  $(BINDIR)
+
+	chmod u+x mumpsc
+	./mumpsc mumps.cpp
+	$(INSTALL) @mode@  mumps                       $(BINDIR)
+
+server:	server.cpp
+	$(INSTALL) -d        @serverdir@
+	chmod 755            @serverdir@
+	chmod u+x makePipes
+	chmod u+x rmPipes
+	cp makePipes @serverdir@
+	cp rmPipes   @serverdir@
+	rm -f mumpsd server
+	mumpsc server.cpp
+	chmod 744 server
+	mv server mumpsd
+	cp mumpsd @serverdir@
+
+uninstall:
+	cd $(BINDIR) && $(RM) $(BINARIES) mumpsc
+	cd $(MAN1DIR) && $(RM) mumpsc.1
+	$(RM) -r $(DOCDIR)
+	$(RM) -r $(INCLUDEDIR)/mumpsc/
+
+clean:
+	$(RM) *.[oas] $(BINARIES)

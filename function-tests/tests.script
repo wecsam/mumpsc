@@ -1,0 +1,99 @@
+#!/bin/bash
+
+echo
+echo "FactorialCall.mps"
+FactorialCall.mps
+
+if [ "$?" -ne "0"  ]
+	then
+	echo "Mumps error returned"
+	exit
+	fi
+
+echo
+echo "dlrTest.mps"
+dlrTest.mps
+
+if [ "$?" -ne "0"  ]
+	then
+	echo "Mumps error returned"
+	echo "error returned"
+	exit
+	fi
+
+
+echo
+echo "factor1.mps"
+factor1.mps
+
+if [ "$?" -ne "0"  ]
+	then
+	echo "Mumps error returned"
+	exit
+	fi
+
+
+echo
+echo "funcTests.mps"
+funcTests.mps
+
+if [ "$?" -ne "0"  ]
+	then
+	echo "Mumps error returned"
+	exit
+	fi
+
+
+echo
+echo "name.mps"
+name.mps
+
+if [ "$?" -ne "0"  ]
+	then
+	echo "Mumps error returned"
+	exit
+	fi
+
+
+echo
+echo "piece-tests.mps"
+piece-tests.mps
+
+if [ "$?" -ne "0"  ]
+	then
+	echo "Mumps error returned"
+	exit
+	fi
+
+
+echo
+echo "qlengthTest.mps"
+qlengthTest.mps
+
+if [ "$?" -ne "0"  ]
+	then
+	echo "Mumps error returned"
+	exit
+	fi
+
+echo
+echo "qsubscriptTest.mps"
+echo
+qsubscriptTest.mps
+
+if [ "$?" -ne "0"  ]
+	then
+	echo "Mumps error returned"
+	exit
+	fi
+
+echo
+echo "queryTest.mps"
+echo
+queryTest.mps
+
+if [ "$?" -ne "0"  ]
+	then
+	echo "Mumps error returned"
+	exit
+	fi

@@ -1,0 +1,304 @@
+#ifndef BTREE_H
+#define BTREE_H
+/*#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+	Mumps Compiler Run-Time Support Functions
+ *#+	Copyright (c) A.D. 2001, 2002, 2003, 2013 by Kevin C. O'Kane
+ *#+	kc.okane@gmail.com
+ *#+	okane@cs.uni.edu
+ *#+
+ *#+	This library is free software; you can redistribute it and/or
+ *#+	modify it under the terms of the GNU Lesser General Public
+ *#+	License as published by the Free Software Foundation; either
+ *#+	version 2.1 of the License, or (at your option) any later version.
+ *#+
+ *#+	This library is distributed in the hope that it will be useful,
+ *#+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *#+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *#+	Lesser General Public License for more details.
+ *#+
+ *#+   You should have received a copy of the GNU Lesser General Public
+ *#+	License along with this library; if not, write to the Free Software
+ *#+	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *#+
+ *#+	http://www.cs.uni.edu/~okane
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+
+ *#+	Some of this code was originally written in Fortran
+ *#+	which will explain the odd array and label usage,
+ *#+	especially arrays beginning at index 1.
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+
+ *#+	This is the native btree global array handler from the
+ *#+	Mumps Compiler.
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+/*#+...............................................................
+ *#+	modify these file depending on your OS and desired features
+ *#+	A.D. June 12, 2003
+ *#+...............................................................*/
+
+int sql(int, struct MSV * svPtr, char *DataSourceName, char *Command, char *, const char *);
+
+/*
+      ADSIZE must be set to 4 or 8.
+      Set to 8 for filesystems that support 64 bit addressing.
+      Set to 4 for all others.
+	Enable large file support if ADSIZE is 8.
+*/
+#define ADSIZE @adsize@
+
+#if ADSIZE==8
+      #ifndef _LARGEFILE_SOURCE
+      #define _LARGEFILE_SOURCE
+      #endif
+
+/*
+	Enable 64 bit file support if ADSIZE is 8.
+*/
+
+      #ifndef _FILE_OFFSET_BITS
+      #define _FILE_OFFSET_BITS 64
+      #endif
+#endif
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <ctype.h>
+
+#define LINUX 1
+#define DOS 2
+
+#ifndef _MSC_VER
+#define USYSTEM LINUX
+#define SYSTEM LINUX
+#define SINGLE
+#include <sys/file.h>
+#include <unistd.h>
+
+#else
+#define MSVisualC
+#define USYSTEM DOS
+#define SYSTEM DOS
+#define MSVC
+#define SINGLE
+#include <sys/locking.h>
+#include <dos.h>
+#include <io.h>
+#endif
+
+#include <mumpsc/strmax.h>
+#include <mumpsc/stateVector.h>
+
+#define GBLPERMIT 0666
+
+// #define UDAT "data.dat"
+// #define UKEY "key.dat"
+
+// In some functions several database operations are
+// done as part of a single transaction in order
+// to make the program work faster. The following
+// is the max number of  database operations per
+// transaction.
+
+#define MAX_SQL_TRAN_COUNT 250
+
+int btree(int,unsigned char *, unsigned char *, struct MSV *);
+
+/*
+	Basic page size is MBLOCK
+	MBLOCK must be a power of 2
+	such as 1024, 2048, etc.
+
+	Large MBLOCK sizes permit larger
+	keys to be stored and/or more keys
+	per block.  Larger blocks with
+	more keys will increase the CPU
+	time to search each block but
+	reduce the block to block transition
+	overhead.  All data is stored in
+	a separate file and thus the amount
+      of store data is not an issue in
+      selecting the value of MBLOCK.
+
+      Generally speaking, performance is
+      improved if the MBLOCK size is tuned
+      to the average key size.	Small keys
+      will run faster on small MBLOCK sizes.
+      Your MBLOCK size, however, must be large
+      enough to hold several keys.  Each key
+      has between 10 and 14 bytes of system
+      overhead associated with it and there
+      is about 30 bytes of system overhead
+      per block.
+
+      Legal blocksizes:
+	    1024
+	    2048
+	    4096
+	    8192
+	    16384
+	    32768
+	    65536
+	    131072
+	    262144
+
+	If you are using ADSIZE 8,
+	and you double MBLOCK, increase
+	PAGE_SHIFT by 1.  If you halve
+	MBLOCK, decrease PAGE_SHIFT by 1.
+	The default is MBLOCK 8192 and
+	PAGE_SHIFT 13.	PAGE_SHIFT is 0
+	for ADSIZE 4.
+
+	If you don't know what you're
+	doing, move away from the keyboard.
+*/
+
+#if ADZIZE==4
+#define MBLOCK @block@
+#else
+#define MBLOCK @block@
+#endif
+
+#define DBL_STR MBLOCK*2
+#define BLOCK_SPLIT MBLOCK-64
+
+#if ADSIZE==4
+#define PAGE_SHIFT 0
+#else
+/*
+	PAGE_SHIFT 10 corresponds to MBLOCK 1024 and a max file size of 2 TB
+	PAGE_SHIFT 11 corresponds to MBLOCK 2048 and a max file size of 4 TB
+	PAGE_SHIFT 12 corresponds to MBLOCK 4096 and a max file size of 8 TB
+	PAGE_SHIFT 13 corresponds to MBLOCK 8192 and a max file size of 16 TB
+	PAGE_SHIFT 14 corresponds to MBLOCK 16384 and a max file size of 32 TB
+	PAGE_SHIFT 15 corresponds to MBLOCK 32768 and a max file size of 64 TB
+	PAGE_SHIFT 16 corresponds to MBLOCK 65536 and a max file size of 128 TB
+      The data file may grow to a max of 2**64 bytes for all settings.
+*/
+#if MBLOCK==1024
+#define PAGE_SHIFT 10
+#elif MBLOCK==2048
+#define PAGE_SHIFT 11
+#elif MBLOCK==4096
+#define PAGE_SHIFT 12
+#elif MBLOCK==8192
+#define PAGE_SHIFT 13
+#elif MBLOCK==16384
+#define PAGE_SHIFT 14
+#elif MBLOCK==32768
+#define PAGE_SHIFT 15
+#elif MBLOCK==65536
+#define PAGE_SHIFT 16
+#elif MBLOCK==131072
+#define PAGE_SHIFT 17
+#elif MBLOCK==262144
+#define PAGE_SHIFT 18
+#elif MBLOCK==524288
+#define PAGE_SHIFT 19
+#elif MBLOCK==1048576
+#define PAGE_SHIFT 20
+#elif MBLOCK==2097152
+#define PAGE_SHIFT 21
+#else
+#error PAGE_SHIFT cannot be determined. Fix MBLOCK value in btree.h
+#endif
+#endif
+
+/*
+	This is the number of internal buffers
+	to maintain.  On M$ Win98 systems, this
+	number should be very big as Win98 does not
+	cache I/O blocks very well.
+
+	The number should be appropriate
+	to you memory size. The memory required is
+	roughly GBLBUF*MBLOCK.  The following values
+	are suggestions.  The M$ number may be too
+	large for some older machines.	Large numbers
+	for GBLBUF will cause greater CPU time but
+	very much reduced I/O transactions.
+      GBLBUF must be a power of 2 plus 1. examples:
+      9
+      17
+      33
+      65
+      1025
+      2049
+      4097
+
+      AMASK must be set to block the low bits.	If:
+      GBLBUF=9	AMASK=0x7
+      GBLBUF=17 AMASK=0xf
+      GBLBUF=4097 AMASK=0xfff
+      AMASK equals GBLBUF-2 in HEX
+*/
+
+#define GBLBUF @cache@
+
+#if GBLBUF==9
+#define AMASK 0x7
+#elif GBLBUF==17
+#define AMASK 0xf
+#elif GBLBUF==33
+#define AMASK 0x1f
+#elif GBLBUF==65
+#define AMASK 0x3f
+#elif GBLBUF==129
+#define AMASK 0x7f
+#elif GBLBUF==257
+#define AMASK 0xff
+#elif GBLBUF==513
+#define AMASK 0x1ff
+#elif GBLBUF==1025
+#define AMASK 0x3ff
+#elif GBLBUF==2049
+#define AMASK 0x7ff
+#elif  GBLBUF==4097
+#define AMASK 0xfff
+#elif  GBLBUF==8193
+#define AMASK 0x1fff
+#elif  GBLBUF==16385
+#define AMASK 0x3fff
+#elif  GBLBUF==32769
+#define AMASK 0x7fff
+#elif  GBLBUF==65537
+#define AMASK 0xffff
+#elif GBLBUF==131073
+#define AMASK 0x1ffff
+#elif GBLBUF==262145
+#define AMASK 0x3ffff
+#elif GBLBUF==524289
+#define AMASK 0x7ffff
+#elif GBLBUF==1048577
+#define AMASK 0xfffff
+#else
+#error GBLBUF value wrong.
+#endif
+
+struct buffers {
+    unsigned char gblbf[MBLOCK];
+    @LONG@ gblbfx;
+    @LONG@ gblmod;
+    };
+
+// static struct buffers *bfr[GBLBUF];
+static struct buffers *gp0;
+static struct buffers *gp1;
+static struct buffers *gp3;
+static struct buffers *gp4;
+static struct buffers *gp5;
+static struct buffers *gproot;
+
+static @LONG@ gblfd = -1, gbldat = -1;
+static @LONG@ trx;
+static @LONG@ ReadOnly = 1;
+
+#endif

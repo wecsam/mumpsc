@@ -1,0 +1,963 @@
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#+
+#+     Mumps Bioinformatics Software Library
+#+     Copyright (C) 2003, 2004, 2008, 2013, 2017 by Kevin C. O'Kane
+#+
+#+     Kevin C. O'Kane
+#+     kc.okane@gmail.com
+#+     http://www.cs.uni.edu/~okane
+#+     http://threadsafebooks.com/
+#+
+#+ This program is free software; you can redistribute it and/or modify
+#+ it under the terms of the GNU General Public License as published by
+#+ the Free Software Foundation; either version 2 of the License, or
+#+ (at your option) any later version.
+#+
+#+ This program is distributed in the hope that it will be useful,
+#+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#+ GNU General Public License for more details.
+#+
+#+ You should have received a copy of the GNU General Public License
+#+ along with this program; if not, write to the Free Software
+#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+// #define MDEBUG // merge debug
+#define FIX (char *)
+
+/* sysfunc.c - Mumps Runtime Library
+ *
+ * These functions are the most operating-system specific.  Some others
+ * aren't very OS-specific, but are somehow related to those that are.
+ */
+
+#include <stdlib.h>
+// #include <malloc.h>
+#include <sys/types.h>
+#include <string>
+#include <iostream>
+#include <string.h>
+#include <unistd.h>
+
+using namespace std;
+
+@dbtype@
+
+#include <mumpsc/defines.h>
+#include <mumpsc/sysparms.h>
+#include <mumpsc/fcns.h>
+#include <mumpsc/global.h>
+#include <mumpsc/strmanip.h>
+#include <mumpsc/libmpscpp.h>
+#include <mumpsc/strmove.h>
+#include <mumpsc/keyfix.h>
+
+#define LINEFEED '\012'
+
+/* #ifdef __APPLE__ */
+/* #include <sys/time.h> */
+/* #endif */
+
+#include <sys/time.h>
+
+void sigint(int);
+
+char *sym_(int symflg, unsigned char *a, unsigned char *b, struct MSV * svPtr);
+
+/*===========================================================================*
+ *                                  getstr1                                  *
+ *===========================================================================*/
+
+int getstr1(FILE * opnfile, unsigned char **area) {
+
+    short int i, chr;
+
+    string instr = "";
+
+    for (i = 0; i < STR_MAX; i++) {
+        chr = fgetc(opnfile);
+
+        if (chr == EOF) {
+            strcpy((char *) *area, "");
+            return -1;
+            }
+
+        if (chr == '\n')  break;
+        else if (chr > 127) chr = ' ';
+        else if (chr == '\r') continue;
+        else if (chr < 32) chr = ' ';
+
+        instr = instr + (char ) chr;
+        }
+
+    strcpy((char *) *area, instr.c_str());
+
+    if (instr.length() < STR_MAX) return instr.length();
+
+    /* truncate lines > STR_MAX bytes in length */
+
+    GlobalExceptionCode=INPUT_LENGTH;
+    throw MumpsGlobalException();
+    area[i]=0;
+    return (i);
+    sigint(100);
+    return (-1);
+    }
+
+/*===========================================================================*
+ *                              TimeOut_getstr1                              *
+ *===========================================================================*/
+
+int TimeOut_getstr1(int io, unsigned char area[], char *timeout,int dirflg) {
+
+    if (io!=5) {
+        printf("*** Timed read only permitted to unit 5\n");
+        sigint(100);
+        }
+
+        {
+        fd_set rfds;
+        struct timeval tv;
+        int i;
+        FD_ZERO(&rfds);
+        FD_SET(0,&rfds);
+        tv.tv_sec = atoi( (char *) timeout);
+        tv.tv_usec = 0;
+
+        if (dirflg) system("stty raw");
+
+        i = select(1,&rfds,NULL,NULL,&tv);
+
+        if (!i) {
+            strcpy( (char * ) area,"");
+
+            if (dirflg) system("stty -raw");
+
+            return 0;
+            }
+
+        if (dirflg) {
+            i = getchar();
+            area[0]=i;
+            area[1]='\0';
+            system("stty -raw");
+            }
+        else {
+            fgets( (char * ) area,STR_MAX,stdin);
+            area[strlen((char *)area)-1]=0;
+            }
+
+        return 1;
+        }
+    }
+
+/*===========================================================================*
+ *                                DirectRead                                 *
+ *===========================================================================*/
+
+int DirectRead(int io, unsigned char *to) {
+
+    if (io!=5) {
+        printf("*** Timed read only permitted to unit 5\n");
+        sigint(100);
+        }
+
+        {
+        int i;
+        system("stty -echo raw");
+        i = getchar();
+        system("stty echo -raw");
+        *to = i;
+        return 1;
+        }
+    }
+
+/*===========================================================================*
+ *                             VariableNotFound                              *
+ *===========================================================================*/
+
+unsigned char * VariableNotFound(long LineNumber) {
+    printf("\n*** Variable not found in or near line %ld\n", LineNumber);
+    sigint(100);
+    return (unsigned char *) "";
+    }
+
+/*===========================================================================*
+ *                             VariableNotFound                              *
+ *===========================================================================*/
+
+unsigned char * VariableNotFound1(long LineNumber, unsigned char *var) {
+    printf("\n*** Variable %s not found in or near line %ld\n", var, LineNumber);
+    sigint(100);
+    return (unsigned char *) "";
+    }
+
+/*===========================================================================*
+ *                             Error Message                                 *
+ *===========================================================================*/
+
+void ErrorMessage(const char * msg, long LineNumber) {
+    printf("\n*** %s in or near line %ld\n", msg, LineNumber);
+    sigint(100);
+    }
+
+/*===========================================================================*
+ *                                  sigint                                   *
+ *===========================================================================*/
+
+void sigint(int i) {
+
+#ifndef SIGKILL
+#define SIGKILL 101
+#endif
+#ifndef SIGHUP
+#define SIGHUP 102
+#endif
+#ifndef SIGINT
+#define SIGINT 103
+#endif
+#ifndef SIGQUIT
+#define SIGQUIT 104
+#endif
+#ifndef SIGILL
+#define SIGILL 105
+#endif
+#ifndef SIGTRAP
+#define SIGTRAP 106
+#endif
+//#ifndef SIGABRT
+//#define SIGABRT 107
+//#endif
+#ifndef SIGBUS
+#define SIGBUS 108
+#endif
+#ifndef SIGFPE
+#define SIGFPE 109
+#endif
+#ifndef SIGKILL
+#define SIGKILL 110
+#endif
+#ifndef SIGUSR1
+#define SIGUSR1 111
+#endif
+#ifndef SIGSEGV
+#define SIGSEGV 112
+#endif
+#ifndef SIGUSR2
+#define SIGUSR2 113
+#endif
+#ifndef SIGPIPE
+#define SIGPIPE 114
+#endif
+#ifndef SIGALRM
+#define SIGALRM 115
+#endif
+#ifndef SIGTERM
+#define SIGTERM 116
+#endif
+#ifndef SIGSTKFLT
+#define SIGSTKFLT 117
+#endif
+#ifndef SIGCHLD
+#define SIGCHLD 118
+#endif
+#ifndef SIGIOT
+#define SIGIOT 119
+#endif
+#ifndef SIGCONT
+#define SIGCONT 120
+#endif
+#ifndef SIGSTOP
+#define SIGSTOP 121
+#endif
+#ifndef SIGTSTP
+#define SIGTSTP 122
+#endif
+#ifndef SIGTTIN
+#define SIGTTIN 123
+#endif
+#ifndef SIGTTOU
+#define SIGTTOU 124
+#endif
+#ifndef SIGURG
+#define SIGURG 125
+#endif
+#ifndef SIGXCPU
+#define SIGXCPU 126
+#endif
+#ifndef SIGXFSZ
+#define SIGXFSZ 127
+#endif
+#ifndef SIGVTALRM
+#define SIGVTALRM 128
+#endif
+#ifndef SIGPROF
+#define SIGPROF 129
+#endif
+#ifndef SIGWINCH
+#define SIGWINCH 130
+#endif
+#ifndef SIGIO
+#define SIGIO 131
+#endif
+#ifndef SIGPWR
+#define SIGPWR 132
+#endif
+#ifndef SIGSYS
+#define SIGSYS 133
+#endif
+    @client@
+
+    char tmp[2];
+    char tmp1[2];
+    struct MSV * svPtr;
+    svPtr=AllocSV(); /* dummy vector */
+
+    if (svPtr==NULL) {
+        printf("Memory error exit\n");
+        fflush(stdout);
+        raise(SIGKILL); // cannot be trapped
+        }
+
+    tmp[0] = 0;
+    tmp1[0] = 0;
+
+    /* Close Globals */
+
+    Mglobal (CLOSE, (unsigned char*) tmp, (unsigned char*) tmp1, svPtr);
+
+    printf("Global arrays closed.\n");
+
+    printf("\nTermination message: %d ",i);
+
+    switch (i) {
+        case SIGHUP:
+            printf("Hangup (POSIX)\n");
+            break;
+
+        case SIGINT:
+            printf("Interrupt (ANSI)\n");
+            break;
+
+        case SIGQUIT:
+            printf("Quit (POSIX)\n");
+            break;
+
+        case SIGILL:
+            printf("Illegal instruction (ANSI)\n");
+            break;
+
+        case SIGTRAP:
+            printf("Trace trap (POSIX)\n");
+            break;
+
+        case SIGABRT:
+            printf("Abort (ANSI)\n");
+            break;
+
+        case SIGBUS:
+            printf("BUS error (4.2 BSD)\n");
+            break;
+
+        case SIGFPE:
+            printf("Floating-point exception (ANSI)\n");
+            break;
+
+        case SIGKILL:
+            printf("Kill, unblockable (POSIX)\n");
+            break;
+
+        case SIGUSR1:
+            printf("User-defined signal 1 (POSIX)\n");
+            break;
+
+        case SIGSEGV:
+            printf("Segmentation violation (ANSI)\n");
+            break;
+
+        case SIGUSR2:
+            printf("User-defined signal 2 (POSIX)\n");
+            break;
+
+        case SIGPIPE:
+            printf("Broken pipe (POSIX)\n");
+            break;
+
+        case SIGALRM:
+            printf("Alarm clock (POSIX)\n");
+            break;
+
+        case SIGTERM:
+            printf("Termination (ANSI)\n");
+            break;
+
+        case SIGSTKFLT:
+            printf("Stack fault\n");
+            break;
+
+        case SIGCHLD:
+            printf("Child status has changed (POSIX)\n");
+            break;
+
+        case SIGCONT:
+            printf("Continue (POSIX)\n");
+            break;
+
+        case SIGSTOP:
+            printf("Stop, unblockable (POSIX)\n");
+            break;
+
+        case SIGTSTP:
+            printf("Keyboard stop (POSIX)\n");
+            break;
+
+        case SIGTTIN:
+            printf("Background read from tty (POSIX)\n");
+            break;
+
+        case SIGTTOU:
+            printf("Background write to tty (POSIX)\n");
+            break;
+
+        case SIGURG:
+            printf("Urgent condition on socket (4.2 BSD)\n");
+            break;
+
+        case SIGXCPU:
+            printf("CPU limit exceeded (4.2 BSD)\n");
+            break;
+
+        case SIGXFSZ:
+            printf("File size limit exceeded (4.2 BSD)\n");
+            break;
+
+        case SIGVTALRM:
+            printf("Virtual alarm clock (4.2 BSD)\n");
+            break;
+
+        case SIGPROF:
+            printf("Profiling alarm clock (4.2 BSD)\n");
+            break;
+
+        case SIGWINCH:
+            printf("Window size change (4.3 BSD, Sun)\n");
+            break;
+
+        case SIGIO:
+            printf("I/O now possible (4.2 BSD)\n");
+            break;
+
+        case SIGPWR:
+            printf("Power failure restart (System V)\n");
+            break;
+
+        case SIGSYS:
+            printf("Bad system call\n");
+            break;
+
+        case 100:
+            printf("Software Error\n");
+            break;
+
+        default:
+            printf("default signal\n");
+        }
+
+    printf("\n");
+    exit(EXIT_FAILURE);
+    }
+
+/*===========================================================================*
+ *                                  AllocSV                                   *
+ *===========================================================================*/
+
+struct MSV * AllocSV(void) {
+    static struct MSV *p1=NULL;
+    int i;
+    char *dbp;
+
+    if (p1 == NULL) {
+
+        signal(SIGHUP,SIG_IGN);
+        signal(SIGINT,sigint);
+        signal(SIGQUIT,&sigint);
+        signal(SIGILL,&sigint);
+        signal(SIGTRAP,&sigint);
+        signal(SIGABRT,sigint);
+        signal(SIGIOT,&sigint);
+        signal(SIGBUS,&sigint);
+        signal(SIGFPE,&sigint);
+        signal(SIGKILL,&sigint);
+        signal(SIGUSR1,&sigint);
+        signal(SIGSEGV,&sigint);
+        signal(SIGUSR2,&sigint);
+        signal(SIGPIPE,&sigint);
+        signal(SIGALRM,&sigint);
+        signal(SIGTERM,&sigint);
+        signal(SIGSTKFLT,&sigint);
+        signal(SIGXCPU,&sigint);
+        signal(SIGXFSZ,&sigint);
+        signal(SIGPWR,&sigint);
+        signal(SIGSYS,&sigint);
+
+        }
+
+    p1 = (struct MSV *) malloc(sizeof(struct MSV));
+
+    if (p1==NULL) {
+        printf("*** Unable to allocate MSV\n");
+        return NULL;
+        }
+
+    p1->LockDone=0;
+    p1->io=5;
+    p1->ierr=0;
+    memset (p1->bd,'\0', STR_MAX);
+    memset (p1->pd1,'\0', PS1);
+    memset (p1->v1d,'\0', STR_MAX);
+    memset (p1->xd,'\0', STR_MAX);
+    memset (p1->setname,'\0', 256);
+    p1->symflg=0;
+    p1->ITRAP=0;
+    p1->setpiece=0;
+    p1->t0px=0;
+    p1->xpx=0;
+    p1->nstart=NULL;
+    p1->ctrlc=0;
+    p1->iorg=1;
+    p1->symlen=0;
+    p1->NOERR=0;
+
+    for (i=0; i<10; i++) {
+        p1->in_file[i]=NULL; /* file ptrs */
+        p1->out_file[i]=NULL; /* file ptrs */
+        p1->hor[i]=0; /* horizontal cursors */
+        p1->ver[i]=1; /* vertical cursors */
+        }
+
+    p1->in_file[5]=stdin;
+    p1->out_file[5]=stdout;
+    p1->LineNumber=0;
+    p1->tpx=0;
+    p1->_Sym=0;
+    p1->pd1len=0;
+    p1->t2=0;
+    p1->nflg=0;
+    p1->Rargsx=0;
+    p1->ERROR=0;
+    p1->gpad=0;
+    strcpy( (char * ) p1->naked,"");
+
+    for (i=0; i<SYM_MAX; i++) p1->start[i]=NULL;
+
+    p1->order=0;
+    p1->_SymPush=0;
+    p1->hit=0;
+    p1->count=0;
+    p1->ScanMinWordSize=3;
+    p1->ScanMaxWordSize=25;
+    p1->fdes[0]=-1;
+    p1->fdes[1]=-1;
+    p1->exec=0;
+    p1->reference[0]=0; // call by ref original name
+    strcpy(p1->CurrentFile,"");
+
+#if defined(POSTGRESSDB) || defined(MYSQLDB)
+
+    strcpy(p1->Col_Names,"");
+    strcpy(p1->pgsql_msg,"");
+    strcpy(p1->Table,"@tablename@");
+    p1->TabSize=@tabsize@;
+    // remote host defaults to 127.0.0.1
+    strcpy(p1->Connection,"host=@remotehost@ dbname=@dbname@ user=@user@ password=@passwd@  ");
+    p1->ConOpen=0;
+    p1->grsltsx=0;
+
+    for (int i=0; i< 21; i++) p1->grslts[i]= (char *) malloc(@index_size@);
+
+    p1->grslts[21]= (char *) malloc(STR_MAX);
+    sprintf(p1->sqloutput,"%d.tmp",getpid());
+
+#else
+
+    if ((dbp=getenv("MumpsNativeDatabase")) !=NULL) {
+        strcpy( (char * ) p1->cfgdata,dbp);
+        strcat( (char * ) p1->cfgdata,".dat");
+        strcpy( (char * ) p1->cfgkey,dbp);
+        strcat( (char * ) p1->cfgkey,".key");
+        strcpy(p1->UDAT,dbp);
+        strcat(p1->UDAT,".dat");
+        strcpy(p1->UKEY,dbp);
+        strcat(p1->UKEY,".key");
+        }
+
+    else {
+        strcpy( (char * ) p1->cfgdata,"data.dat");
+        strcpy( (char * ) p1->cfgkey,"key.dat");
+        strcpy(p1->UDAT,"data.dat");
+        strcpy(p1->UKEY,"key.dat");
+        }
+
+#endif
+
+    return p1;
+    };
+
+int Merge(unsigned char * left, unsigned char * right, struct MSV * svPtr) {
+
+    int i,j,k;
+    unsigned char tmp1[STR_MAX],tmp2[STR_MAX],tmp3[STR_MAX],tmp4[STR_MAX];
+
+    if (right[0] != '^') return 1;
+
+    if (left[0] != '^') return 2;
+
+#ifdef MDEBUG
+    printf("MERGE left=%s right=%s\n",left,right);
+    printf ("left:  ");
+    for (int i=0; left[i]!=0; i++) printf("%d ",left[i]);
+    printf("\n");
+    printf ("right: ");
+    for (int i=0; right[i]!=0; i++) printf("%d ",right[i]);
+    printf("\n");
+#endif
+
+    strcpy( (char * ) tmp2, (char * ) right);
+    strcpy( (char * ) tmp3, (char * ) left);
+
+    i=Mglobal(RETRIEVE,tmp2,tmp1,svPtr); /* copy top refs */
+
+    if (i!=0) Mglobal(STORE,tmp3,tmp1,svPtr);
+
+    strcpy( (char * ) tmp2, (char * ) right);
+    i=strlen( (char *) tmp2);
+
+    for (j=i-1; j>0; j--) if (tmp2[j]>127) break;
+
+    if (j!=0) tmp2[j+1]='\0';
+    else {
+        tmp2[i++]=1;
+        tmp2[i]=0;
+        j=i;
+        }
+
+    keyfix(tmp2);
+    j=strlen( (char *) tmp2);
+
+    strcpy( (char * ) tmp3, (char * ) left);
+    i=strlen( (char *) tmp3);
+
+    for (k=i-1; k>0; k--) if (tmp3[k]>127) break;
+
+    if (k!=0) tmp3[k+1]='\0';
+    else {
+        tmp3[i++]=1;
+        tmp3[i]=0;
+        k=i;
+        }
+
+    keyfix(tmp3);
+    k=strlen( (char *) tmp3);
+
+#ifdef MDEBUG
+    printf("Merge Dx: left=%s right=%s ModRight=%s ModLeft=%s\n",left,right,tmp2,tmp3);
+#endif
+
+    if (Mglobal(RETRIEVE,right,tmp1,svPtr) != 0) {  // handle first case - may not exist
+        strcpy( (char * ) tmp4, (char * ) tmp3);
+        Mglobal(STORE,tmp3,tmp1,svPtr);
+        strcpy( (char * ) tmp3, (char * ) tmp4);
+        }
+
+    while(1) {
+
+        if (Mglobal(XNEXT,right,tmp1,svPtr)==0) break;
+
+
+#if defined(POSTGRESSDB) || defined(MYSQLDB)
+
+        relationalXnext ( tmp1, right, svPtr);
+
+#endif
+
+        strcpy( FIX &tmp3[k], FIX &right[j]);
+
+        if (strncmp( (char *) right, (char *) tmp2,j)!=0) break;
+
+        Mglobal(RETRIEVE,right,tmp1,svPtr);
+
+        strcpy( (char * ) tmp4, (char * ) tmp3);
+        Mglobal(STORE,tmp3,tmp1,svPtr);
+        strcpy( (char * ) tmp3, (char * ) tmp4);
+        }
+
+    return 0;
+    }
+
+void GlobalData(unsigned char * tmp0, unsigned char * tmp2, struct MSV * svPtr) {
+    int g,f,_i;
+    unsigned char gtmp[STR_MAX];
+    unsigned char tmp1[STR_MAX];
+
+    if (!Mglobal(RETRIEVE,tmp0,tmp1,svPtr)) {
+
+        _i=strlen( (char *) tmp0);
+
+#if !(defined(POSTGRESSDB) || defined(MYSQLDB))
+        tmp0[_i]=1;
+        tmp0[_i+1]=0;
+        f=Mglobal(NEXT,tmp0,tmp1,svPtr);
+#endif
+
+#if defined(POSTGRESSDB) || defined(MYSQLDB)
+        tmp0[_i] = 2;
+        tmp0[_i + 1] = 1;
+        tmp0[_i + 2] = 0;
+        f = Mglobal (ORDERNEXT, tmp0, tmp1, svPtr);
+#endif
+
+        if (f==1) strmove(tmp2, (unsigned char *) "10");
+        else strmove(tmp2, (unsigned char *) "0");
+        }
+    else {
+        strmove(tmp2, (unsigned char *) "1");
+        _i=strlen( (char *) tmp0);
+
+#if !(defined(POSTGRESSDB) || defined(MYSQLDB))
+        tmp0[_i]=1;
+        tmp0[_i+1]=0;
+        f=Mglobal(NEXT,tmp0,tmp1,svPtr);
+#endif
+
+#if defined(POSTGRESSDB) || defined(MYSQLDB)
+        tmp0[_i] = 2;
+        tmp0[_i + 1] = 1;
+        tmp0[_i + 2] = 0;
+        f = Mglobal (ORDERNEXT, tmp0, tmp1, svPtr);
+#endif
+
+        if (f==1) strcat( (char *) tmp2,"1");
+        }
+    }
+
+void LocalData(unsigned char * tmp0, unsigned char * tmp2, struct MSV * svPtr) {
+
+    sym_(6,tmp0,tmp2,svPtr);
+
+    return;
+    }
+
+void LocalOrder(unsigned char * tmp0, unsigned char * tmp1, unsigned char * tmp2, struct MSV * svPtr) {
+
+    int i;
+    i=strlen( (char *) tmp0);
+
+    if (tmp2 == NULL) svPtr->order=1;
+    else if (strcmp( (char *) tmp2,"1")==0) svPtr->order=1;
+    else if (strcmp( (char *) tmp2,"-1")==0) svPtr->order=-1;
+    else ErrorMessage("$order() second argument incorrect",svPtr->LineNumber);
+
+    sym_(33,tmp0,tmp1,svPtr);
+    return;
+    }
+
+void LocalNext(unsigned char * tmp0, unsigned char * tmp1, struct MSV * svPtr) {
+
+    sym_(3,tmp0,tmp1,svPtr);
+
+    return;
+    }
+
+void GlobalNext(unsigned char * tmp0, unsigned char * tmp1, struct MSV * svPtr) {
+
+    Mglobal(NEXT,tmp0,tmp1,svPtr);
+
+    return;
+    }
+
+void LocalName(unsigned char * tmp0, unsigned char * tmp1, unsigned char * tmp2, struct MSV * svPtr) {
+
+    int i,j=999,k=0,m;
+    unsigned char tmp3[STR_MAX];
+
+    if (tmp2 != NULL) j=atoi( (char *) tmp2);
+
+    for (i=0,m=0; tmp0[i]!='\0'; i++) {
+
+        if (k>=j && k==0 && tmp0[i]>127) {
+            tmp3[m++]='\0';
+            break;
+            }
+
+        else if (k>=j && tmp0[i]>127) {
+            tmp3[m++]=')';
+            tmp3[m++]='\0';
+            break;
+            }
+        else if (tmp0[i]==206) {
+            tmp3[m++]='(';
+            tmp3[m++]='\"';
+            k++;
+            }
+        else if (tmp0[i]==207) {
+            tmp3[m++]='\"';
+            tmp3[m++]=')';
+            k++;
+            }
+        else if (tmp0[i]==208) {
+            tmp3[m++]='\"';
+            tmp3[m++]=',';
+            tmp3[m++]='\"';
+            k++;
+            }
+        else tmp3[m++]=tmp0[i];
+        }
+
+    tmp3[m]=0;
+
+    strcpy( (char * ) tmp1, (char * ) tmp3);
+    return;
+    }
+
+void GlobalName(unsigned char * tmp1, unsigned char tok, struct MSV * svPtr) {
+    int i,j=999,k=0,oflg=0;
+
+    char tmp3[STR_MAX];
+    int tx=0;
+
+    if (tok == 0) {
+        for (i=0; tmp1[i]!='\0'; i++) {
+            if (tmp1[i]=='\x01' && !oflg) {
+                tmp3[tx++]='(';
+                tmp3[tx++]='\"';
+                k++;
+                oflg=1;
+                }
+            else if (tmp1[i]=='\x01' && oflg && tmp1[i+1]!='\0') {
+                tmp3[tx++]='\"';
+                tmp3[tx++]=',';
+                tmp3[tx++]='\"';
+                k++;
+                }
+            else if (tmp1[i]=='\x01') {
+                tmp3[tx++]='\"';
+                tmp3[tx++]=')';
+                k++;
+                }
+            else tmp3[tx++]=tmp1[i];
+            }
+        }
+    else {
+        for (i=0; tmp1[i]!='\0'; i++) {
+            if (tmp1[i]=='\x01' && !oflg) {
+                tmp3[tx++]=tok;
+                k++;
+                oflg=1;
+                }
+            else if (tmp1[i]=='\x01' && oflg && tmp1[i+1]!='\0') {
+                tmp3[tx++]=tok;
+                k++;
+                }
+            else if (tmp1[i]=='\x01') {
+                tmp3[tx++]=tok;
+                k++;
+                }
+            else tmp3[tx++]=tmp1[i];
+            }
+        }
+
+    tmp3[tx]=0;
+    strcpy((char *) tmp1,tmp3);
+    return;
+    }
+
+void LocalGet(unsigned char * tmp0, unsigned char * tmp1, unsigned char * tmp2, struct MSV * svPtr) {
+
+    if (sym_(11,tmp0,tmp1,svPtr)==NULL) {
+        if (tmp2==NULL) strcpy( (char * ) tmp1,"");
+        else strcpy( (char * ) tmp1, (char * ) tmp2);
+
+        return;
+        }
+
+    return; /* ans in tmp1 */
+    }
+
+void GlobalGet(unsigned char * tmp0, unsigned char * tmp1, unsigned char * tmp2, struct MSV * svPtr) {
+
+    if (Mglobal(RETRIEVE,tmp0,tmp1,svPtr)==0) {
+        if (tmp2==NULL) strcpy( (char * ) tmp1,"");
+        else strcpy( (char * ) tmp1, (char * ) tmp2);
+
+        return;
+        }
+
+    return; /* ans in tmp1 */
+    }
+
+void unpad(unsigned char *key, struct MSV *svPtr) {
+    unsigned char * r=key;
+
+    if (svPtr->gpad==0) return;
+
+    if (*r=='\x1f') { // a gpad entry found
+        unsigned char tmp[64];
+        double x;
+        r++;
+
+        if (*r=='0') *r='-';
+        else *r='+';
+
+        memcpy(tmp,r,GPADWIDTH);
+        tmp[GPADWIDTH]='\0';
+        sscanf( (char *) tmp,"%lf",&x);
+        sprintf( (char *) key,"%lg",x);
+        }
+
+    return;
+    }
+
+void fullUnpad(unsigned char * key, struct MSV * svPtr) {
+    unsigned char tmp1[STR_MAX]="",tmp2[STR_MAX],*p1;
+    static unsigned char delim[2]= {1,0};
+    int i,j,k;
+    strcatx(tmp1, (unsigned char *) strtok( (char *) key, (char *) delim));
+
+    while ((p1= (unsigned char *) strtok(NULL, (char *) delim))!=NULL) {
+        strcpy( (char * ) tmp2, (char * ) p1);
+        unpad(tmp2,svPtr);
+        strcatx(tmp1,tmp2);
+        }
+
+    strcpy( (char * ) key, (char * ) tmp1);
+    return;
+    }
+
+void relationalXnext ( unsigned char * tmp1, unsigned char * right, struct MSV * svPtr) {
+
+// routine to fix PostgreSQL & MySQL XNEXT results so as to conform to Native DB
+
+    int i;
+
+    if (svPtr->grsltsx > 0) {
+        char marker[2]= {1,0};
+        tmp1[0]=0;
+        strcat((char *) tmp1, svPtr->Table);
+        strcat( (char *) tmp1,marker);
+        strcat((char *)tmp1,svPtr->grslts[0]); // first column val
+        for (int i=1; i< svPtr->grsltsx; i++) {
+            if (strlen(svPtr->grslts[i])==0) break;
+            strcat( (char *) tmp1,marker);
+            strcat((char *)tmp1,svPtr->grslts[i]);
+            }
+        strcat( (char *) tmp1,marker);
+        }
+    else strcpy( (char *) tmp1, "");
+    for (i=0; (right[i]=tmp1[i])!=0; i++);
+    return;
+    }
+
+
+

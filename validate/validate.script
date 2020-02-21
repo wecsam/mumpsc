@@ -1,0 +1,171 @@
+#!/bin/bash
+
+cat /dev/null > nohup.out
+
+echo "Mumps and MDH validation routines"
+
+chmod u+x *.mps
+
+rm -f key.dat data.dat
+
+echo " misc tests"
+
+./checkout.mps < checkout.input
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo "new tests"
+
+./new01.mps
+echo "-----------------------"
+./new02.mps
+echo "-----------------------"
+./new03.mps
+
+echo " local $order tests"
+
+./lclOrder.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo " perl backref test"
+
+./backref.mps < backref.input
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo " functions test"
+
+./fcns.mps < fcns.input
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo " for loop tests"
+
+./for1.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+./for2.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+./for3.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo " operator tests"
+
+./ops.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo " goto and do tests"
+
+./go1.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo " subroutine tests"
+
+./s6.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo " global stress test"
+
+./globals1.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo " zfunctions test"
+
+./zfunctions.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo "query qlength qsubscript"
+
+./qtst.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo "kill test"
+
+./kill.mps
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo "readonly test - expect sum of 100 with garbled lines"
+
+rm key.dat data.dat
+
+./readonlysetup.mps
+./readonly.mps &
+./readonly.mps &
+./readonly.mps &
+./readonly.mps &
+
+wait
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+echo " MDH kit tests"
+
+mumpsc mdh001.cpp
+if (($? > 0)); then echo "compilation error"; exit; fi
+mumpsc gbl001.cpp
+if (($? > 0)); then echo "compilation error"; exit; fi
+mumpsc gbl002.cpp
+if (($? > 0)); then echo "compilation error"; exit; fi
+# mumpsc gbl003.cpp
+mumpsc gbl004.cpp
+if (($? > 0)); then echo "compilation error"; exit; fi
+mumpsc mdhT1.cpp
+if (($? > 0)); then echo "compilation error"; exit; fi
+mumpsc mdhT2.cpp
+if (($? > 0)); then echo "compilation error"; exit; fi
+mumpsc mstring.cpp
+if (($? > 0)); then echo "compilation error"; exit; fi
+mumpsc mdhGlobal.cpp
+if (($? > 0)); then echo "compilation error"; exit; fi
+
+./gbl001
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+./gbl002
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+# ./gbl003
+
+# if (($? > 0)); then echo "execution error"; exit; fi
+
+./gbl004
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+./mdhT1
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+./mdhT2 < mdhT2.input
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+./mstring
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+./mdhGlobal
+
+if (($? > 0)); then echo "execution error"; exit; fi
+
+./mdh001
+if (($? > 0)); then echo "execution error"; exit; fi
+
+# cleanup
+
+rm -f tmpI.tmp tmp.tmp
+rm -r key.dat data.dat

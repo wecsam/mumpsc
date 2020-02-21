@@ -1,0 +1,109 @@
+//#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#+    Mumps Compiler Run-Time Support Functions
+//#+    Copyright (c) A.D. 2001, 2002, 2003 by Kevin C. O'Kane
+//#+    okane@cs.uni.edu
+//#+
+//#+    This library is free software; you can redistribute it and/or
+//#+    modify it under the terms of the GNU Lesser General Public
+//#+    License as published by the Free Software Foundation; either
+//#+    version 2.1 of the License, or (at your option) any later version.
+//#+
+//#+    This library is distributed in the hope that it will be useful,
+//#+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//#+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+//#+    Lesser General Public License for more details.
+//#+
+//#+   You should have received a copy of the GNU Lesser General Public
+//#+    License along with this library; if not, write to the Free Software
+//#+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//#+
+//#+    http://www.cs.uni.edu/~okane
+//#+
+//#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//
+//#+******************************************
+//#+ Modify this file depending on your OS
+//#+******************************************
+
+/* FIXME: These two constants also appear in sysparms.h */
+#define PS 4096
+#define PS1 PS+1
+
+#define SHOW_CODE 1
+#define SQL 0
+// #define POSTGRES 0
+// #define STEM 0
+#define VERSION 1000
+// #define UDAT "data.dat"
+// #define UKEY "key.dat"
+#define DDAT "data.dat"
+#define DKEY "key.dat"
+#define RELEASE "@VERSION@ " __DATE__
+#define NOTABS
+#define FORPARM 32
+
+//#+****************************************************************************
+//#+   Define NOTABS if you want lines that begin with blanks
+//#+
+//#+   Solaris (gnu):  UNIX = 1, SYSTEM = UNIX, USYSTEM = UNIX,   undefine MSVC
+//#+   Linux (gnu):    UNIX = 1, SYSTEM = UNIX, USYSTEM = LINUX,  undefine MSVC
+//#+   WATCOM DOS:     UNIX = 0, SYSTEM = DOS,  USYSTEM = DOS,    undefine MSVC
+//#+   GNU DOS (DJGPP) UNIX = 0, SYSTEM = UNIX, USYSTEM = DOS,    undefine MSVC
+//#+   MS DOS Visual C UNIX = 0, SYSTEM = DOS,  USYSTEM = DOS,    define   MSVC
+//#+
+//#+   Define Linux, Solaris, Watcom, GnuDos, or MSVisualC to auto set parms.
+//#+   The code below is set to detect MS Visual C.  If not found, it defaults
+//#+   to Linux.
+//#+
+//#+   define GCVT if your system lacks this function
+//#+*****************************************************************************
+
+#ifdef __APPLE__
+#define GCVT 1
+#endif
+
+#ifdef _MSC_VER
+#define MSVisualC
+#endif
+
+#ifndef _MSC_VER
+#ifndef GnuDos
+#define Linux
+#endif
+#endif
+
+#ifdef Solaris
+#define USYSTEM UNIX
+#define UNIX 1
+#define DOS 2 
+#define SYSTEM UNIX
+#endif
+
+#ifdef Linux
+#define USYSTEM LINUX
+#define UNIX 1
+#define DOS 2 
+#define SYSTEM UNIX
+#endif
+
+#ifdef Watcom
+#define USYSTEM DOS
+#define UNIX 0
+#define DOS 2 
+#define SYSTEM DOS
+#endif
+
+#ifdef GnuDos
+#define USYSTEM DOS
+#define UNIX 0
+#define DOS 2 
+#define SYSTEM UNIX
+#endif
+
+#ifdef MSVisualC
+#define USYSTEM DOS
+#define UNIX 0
+#define DOS 2 
+#define SYSTEM DOS
+#define MSVC
+#endif

@@ -1,0 +1,50 @@
+#!/bin/bash
+rm key.dat
+rm data.dat
+echo "generate and retrieve NBR_ITERATIONS keys"
+mumpsc btest1.cpp 
+./btest1
+if (($? > 0)); then echo "execution error"; exit; fi
+echo "retrieve NBR_ITERATIONS keys stored by prior step"
+mumpsc btest2.cpp 
+./btest2
+if (($? > 0)); then echo "execution error"; exit; fi
+rm key.dat
+rm data.dat
+echo "generate and retrieve NBR_ITERATIONS random keys"
+mumpsc btest3.cpp 
+./btest3
+if (($? > 0)); then echo "execution error"; exit; fi
+rm key.dat
+rm data.dat
+echo "generate and XNEXT thru NBR_ITERATIONS random keys"
+echo "number of unique keys depends on rand() and may be less than"
+echo "NBR_ITERATIONS"
+mumpsc btest4.cpp 
+./btest4
+if (($? > 0)); then echo "execution error"; exit; fi
+rm key.dat
+rm data.dat
+echo "same as prior but PREVIOUS operation"
+mumpsc btest5.cpp 
+./btest5
+if (($? > 0)); then echo "execution error"; exit; fi
+rm key.dat
+rm data.dat
+echo "same as prior but count keys operation"
+mumpsc btest6.cpp 
+./btest6
+if (($? > 0)); then echo "execution error"; exit; fi
+rm key.dat
+rm data.dat
+echo "same as prior but XNEXT and count keys operation"
+mumpsc btest7.cpp 
+./btest7
+if (($? > 0)); then echo "execution error"; exit; fi
+rm key.dat
+rm data.dat
+echo "kill a key and recount"
+mumpsc btest8.cpp 
+./btest8
+if (($? > 0)); then echo "execution error"; exit; fi
+echo "All test completed without error"

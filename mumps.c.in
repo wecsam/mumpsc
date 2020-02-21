@@ -1,0 +1,3789 @@
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#+
+#+     Mumps Bioinformatics Software Library
+#+     Copyright (C) 2003, 2004, 2008, 2015, 2017 by Kevin C. O'Kane
+#+
+#+     Kevin C. O'Kane
+#+     kc.okane@gmail.com
+#+     okane@cs.uni.edu
+#+     http://www.cs.uni.edu/~okane
+#+     http://threadsafebooks.com/
+#+
+#+ This program is free software; you can redistribute it and/or modify
+#+ it under the terms of the GNU General Public License as published by
+#+ the Free Software Foundation; either version 2 of the License, or
+#+ (at your option) any later version.
+#+
+#+ This program is distributed in the hope that it will be useful,
+#+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#+ GNU General Public License for more details.
+#+
+#+ You should have received a copy of the GNU General Public License
+#+ along with this program; if not, write to the Free Software
+#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+//#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#+
+//#+    Some of this code was originally written in Fortran
+//#+    which will explain the odd array and label usage,
+//#+    especially arrays beginning at index 1.
+//#+
+//#+    This was originally an interpreter.  It has been hacked
+//#+    to be a compiler.  Some of the structure will, therefore,
+//#+    seem strange.
+//#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#include <mumpsc/memsize.h>
+
+#include <stdio.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <time.h>
+
+#include <sys/stat.h>
+
+#define INTERPRET fprintf (Out, "\t _jj=Interpret((const char *)\"%s\",svPtr);\n", tmp); \
+                  fprintf (Out, "\t svPtr->ERROR=_jj;\n"); \
+                  fprintf (Out, "\t if (!svPtr->NOERR && _jj<0) "); \
+                  fprintf (Out, "ErrorMessage(\"Indirection error\",svPtr->LineNumber);\n");
+
+#define SymCheck if (ExecSym[ExecX]) { fprintf(Out,"\t _SymFree(1,svPtr); /* Remove symbol table layer */\n"); ExecSym[ExecX]=0; }
+#define Sysout(x) fprintf(Out,x)
+#define Sysout_skip fprintf(Out,"\n")
+#define SWAP 30
+#define STORE 1
+#define RETRIEVE 0
+#define NEXT 2
+#define XNEXT 8
+#define GKILL 3
+#define INIT 6
+#define GOPEN 7
+#define EMPTY 5
+#define CLOSE 4
+
+#define JOB       'j'
+#define SET       's'
+#define MERGE     'm'
+#define GOTO      'g'
+#define WRITE     'w'
+#define IF        'i'
+#define NEW       'n'
+#define NEW1      'N'
+#define OPEN      'o'
+#define ZCMDS     'z'
+#define READ      'r'
+#define QUIT      'q'
+#define XECUTE    'x'
+#define FOR       'f'
+#define HALT      'h'
+#define ELSE      'e'
+#define EXPORTS   'y'
+#define DO        'd'
+#define KILL      'k'
+#define CLOSE     'c'
+#define CONTINUE  'b'
+#define USE       'u'
+#define LOCK      'l'
+#define CMMNT     ';'
+#define BREAK     'b'
+#define HTML      '<'
+#define KILL2     20
+#define FCN       'D'
+#define LBL       21
+#define CLSQ      '}'
+#define OPSQ      '{'
+#define TRY       't'
+#define CATCH     'c'
+
+#define FBMAX 4000 /* max number of FOR blocks */
+
+#ifdef NOTABS
+#define TAB ' '
+#else
+#define TAB 9
+#endif
+
+short setpiece;
+unsigned char setname[128];
+unsigned char bd[2048];
+short int tpx;
+short t2;
+short pd1len=0;
+short iorg;
+long xpx;
+short t0px;
+short ierr;
+short symlen;
+short sdlim;
+unsigned char pd1[PS1];
+unsigned char xd[2048];
+unsigned char v1d[2048];
+short int ctrlc;
+int gpad;
+short ierr1;
+struct nmes *nstart;
+short Jflg;
+short MAIN_flg = 0;
+char FunctionName[256];
+short ArgMax = 0;
+char ErrChar=' ';
+
+struct nmes {
+    char *name;
+    struct nmes *next;
+    } ;
+
+struct txt {
+    char *name;
+    int lnbr;
+    struct txt *next;
+    } *LabelsStart=NULL, *TextStart=NULL, *p1=NULL, *p3=NULL;
+
+#define CVARMAX 100
+
+struct dcls {
+    char name[32];
+    int type;
+    } cvars[CVARMAX];
+
+int cvarx;
+
+int cvar (char *);
+
+char * Extract2(unsigned char *);
+char * Extract1(unsigned char *);
+void ScanPastPostCond(long *xpx, char *xd, int *j);
+int   xindex (unsigned char *, unsigned char *, short);
+void  errmod_ (short msgnbr, unsigned char text[], FILE * opnfile[]);
+int   readf_ (unsigned char zd[], short pd1org);
+void  inout (unsigned char text[], short cmnd, unsigned char col[]);
+int   pindex (unsigned char source[], unsigned char ptrn[], short strt);
+void  add (char *a, char *b, char *c);
+int   numcomp (char aa[], char bb[]);
+// void  cannon (char a[]);
+void  linepad (int, char *);
+void  linepad2 (char *);
+void  fcninit ();
+void  epi (short);
+void  EP (int, short);
+int   getstr1 (FILE *, char[]);
+int   LevCheck(short ExecName, short DoRetX, short DoRet[]);
+int   doty(int j, short *ExecLevel, short *ExecName, short DoRet[], short DoRetX, short *pd1Last,
+           short pd1cur, short ExecStack[], short *ExecX, short ExecSym[]);
+void  LocalArray (unsigned char vd[], short *Set_flg);
+void  GlobalArray(unsigned char v1d[], short *GBL_flg, unsigned char *vd);
+int   atTest(unsigned char xd[], unsigned char pd1[], short *pd1Last, short lines);
+void  atCopy (int at_flg, unsigned char tmp[]);
+
+FILE  *Out,*Final;
+short ExitCode = 0;
+short MaxTmp = 2; /* max number of temp strrings used so far in this function */
+int iiitmp; /* count on temp strings used so far in this stmt */
+int   forxmax = 0;
+int   forxFLG=0,forLine=0,forx = 0;
+int   IF_flg = 0;
+int   IF_flg_max = 0;
+int   for_fcn_flg=0, for_fcn_flg2=0;
+short ForBlocks[FBMAX];
+short Blocks[FBMAX];
+static short FCN_flg = 0;
+int lines;
+
+#if WEB==0
+
+int   main (int argc, char *argv[]) {
+
+#else
+
+int   main () {
+
+    char  *argv[2] = { "xxx", "test.file" };
+    int   argc = 2;
+
+#endif
+
+    time_t      ilong, jlong;
+
+    short       pd1cur, i, j, k;
+    short       l, parse_ ();
+
+    static short cmdx, pd1Last, POST_flg = 0;
+    static short GBL_flg = 0;
+    static short exportflag=0;
+    static short ExecLevel = 0;
+    static short ExecName = 0;
+    static short ExecStack[25];
+    static short ExecSym[25] = { 0 };
+    static short ExecX = 0;
+    static short DoRet[1000];
+    static short DoRetX=0;
+    static short CX,EmitLabel=0;
+    static short JOB_flg = 0;
+    static short at_flg = 0, Set_flg = 0;
+    static short LockFlag=0;
+    static short SubFlag=0;
+    static short SymIncrFlg = 0;
+    static short for_mult = -1;
+    int F_flg = 0;
+    short SinglesFlg = 0;
+    int MergeFlg=0;
+    int MergeTmp=0;
+    int TryFlg=0;
+    int CatchFlg=0;
+
+    FILE *opnfile[7];
+    FILE *in;
+    static unsigned char forv[256];
+    int FOR_limit;
+    static unsigned char dosave[64];
+    char cur_line[512];
+    char *lhs[25];
+    int lhsGF[25];
+    int lhsx=0;
+    int lhsf=0;
+
+//#+++++++++++++++++++++
+//#+ cod208=208 comma
+//#+ cod207=207 close
+//#+ cod209=209 comma
+//#+ cod210=210 colon
+//#+ cod206=206 open
+//#+++++++++++++++++++++
+
+    static short retz, icmnd, p2px, ernbr;
+    static unsigned char output_file[1024]="", tmp2[1024], tmp3[1024], dirflg, vd[1024];
+    static int pl;
+    char *p2;
+
+    static char *except[] = {
+        "InputLengthException",
+        "InterpreterException",
+        ""
+        };
+    static int flg=1;
+
+    symlen = PS;
+    TextStart=NULL;
+    strcpy(FunctionName,"");
+
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#*
+//#* Disclaimer to Console
+//#*
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    printf("The Mumps Compiler ");
+    printf(@version@);
+    printf("\n");
+
+    if (argc ==2 && strcmp(argv[1],"-v")==0) return 99;
+
+    if (argc == 1) {
+        printf ("*** \a Name of program to compile must be given\n\n");
+        ExitCode = 99;
+        return 99;
+        }
+
+    else {
+
+        if (argc == 3) {
+            if (strcmp(argv[1],"-SUB")==0) {
+                SubFlag=1;
+                }
+            else {
+                printf ("*** Unrecognized option: %s\n\n", argv[1]);
+                ExitCode = 99;
+                return 99;
+                }
+            }
+
+        for (i = strlen(argv[argc-1]); i >= 0 && argv[argc-1][i] != '.'; i--);
+        if (i < 0 ) strcpy(tmp2,argv[1]);
+        else {
+            argv[argc-1][i]=0;
+            strcpy(tmp2,argv[argc-1]);
+            argv[argc-1][i]='.';
+            }
+        strcat(tmp2,".m");
+
+#if WEB==0
+        Out = fopen (tmp2, "w");
+        strcpy (output_file, tmp2);
+#else
+        Out = stdout;
+#endif
+
+        if ((in=fopen(argv[argc-1], "r")) == NULL) {
+            printf ("*** \a File %s not found.\n\n", argv[argc-1]);
+            ExitCode = 99;
+            return 99;
+            }
+        printf ("Translating %s to C++:\n", argv[argc-1]);
+        }
+
+    /*    **********************************************************
+          check for leading #define symbols to be included first
+          **********************************************************/
+
+        {
+        int i;
+        char str[512];
+        while (1) {
+            i=getc(in);
+            if (i!='+') {
+                ungetc(i,in);
+                break;
+                }
+            if ( fgets(str,512,in) == NULL ) {
+                printf("Enexpected end of file\n");
+                ExitCode=99;
+                goto abrtx;
+                }
+            fprintf(Out,"%s\n",str);
+            // Sysout(str);
+            }
+        }
+
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#*
+//#* Copyright and Disclaimer to Output File
+//#*
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    Sysout ("// ==============================================================\n");
+    ilong = time (&ilong);
+
+    Sysout ("//#+ This module generated by Mumps Compiler ");
+    Sysout (RELEASE);
+    Sysout ("\n");
+    Sysout("//#+  \n");
+    Sysout("//#+ Portions of this code are part of the Mumps Compiler\n");
+    Sysout("//#+ \n");
+    Sysout("//#+ Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2010, 2017 by Kevin C. O'Kane  \n");
+    Sysout("//#+ \n");
+    Sysout("//#+ Kevin C. O'Kane, Ph.D.\n");
+    Sysout("//#+ Professor Emeritus\n");
+    Sysout("//#+ Computer Science Department\n");
+    Sysout("//#+ University of Northern Iowa\n");
+    Sysout("//#+ Cedar Falls, IA 50614-0507\n");
+    Sysout("//#+ okane@cs.uni.edu\n");
+    Sysout("//#+ http://www.cs.uni.edu/~okane\n");
+    Sysout("//#+ -----------------------------------\n");
+    Sysout("//#+ \n");
+    Sysout("//#+ Consult individual modules for copyright details\n");
+    Sysout("//#+ The runtime libraries are covered by the following license:\n");
+    Sysout("//#+  \n");
+    Sysout("//#+ This library is free software; you can redistribute it and/or\n");
+    Sysout("//#+ modify it under the terms of the GNU Lesser General Public\n");
+    Sysout("//#+ License as published by the Free Software Foundation; either\n");
+    Sysout("//#+ version 2.1 of the License, or (at your option) any later version.\n");
+    Sysout("//#+ \n");
+    Sysout("//#+ This library is distributed in the hope that it will be useful,\n");
+    Sysout("//#+ but WITHOUT ANY WARRANTY; without even the implied warranty of\n");
+    Sysout("//#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU\n");
+    Sysout("//#+ Lesser General Public License for more details.\n");
+    Sysout("//#+ \n");
+    Sysout("//#+ You should have received a copy of the GNU Lesser General Public\n");
+    Sysout("//#+ License along with this library; if not, write to the Free Software\n");
+    Sysout("//#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA\n");
+    Sysout("//#+ \n");
+    Sysout("//#+ This code is unverified - use at your own risk \n");
+    Sysout("//#+==============================================================\n");
+    Sysout("\n");
+
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#*
+//#* Include, Defines and Global Defs to Output File
+//#*
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//      Sysout ("#define _INTERP_ // indicates .cpp file for includes expansions\n");
+    Sysout ("#undef _MDH_\n");
+    Sysout ("#include <stdio.h>\n");
+    Sysout ("#include <string.h>\n");
+    Sysout ("#include <stdlib.h>\n");
+    Sysout ("#include <setjmp.h>\n");
+    Sysout ("#include <unistd.h>\n");
+    Sysout ("#include <mumpsc/defines.h>\n");
+    Sysout ("#include <mumpsc/strmax.h>\n");
+    Sysout ("#include <mumpsc/libmpscpp.h>\n");
+    Sysout ("#include <mumpsc/sym.h>\n");
+    Sysout ("#include <mumpsc/builtin.h>\n");
+    Sysout ("#include <mumpsc/compiler.h>\n");
+    Sysout ("#define FORPARM STR_MAX  /* Size of For loop parameter */\n");
+    Sysout ("#define CSTR (char *)\n");
+    Sysout ("#define USTR (unsigned char *)\n");
+    Sysout ("#include <mumpsc/strmove.h>\n");
+    Sysout ("#include <mumpsc/keyfix.h>\n");
+    Sysout ("#include <mumpsc/globalOrder.h>\n");
+
+    if (SubFlag) Sysout ("#define SUB\n");
+
+    Sysout ("#include <mumpsc/stateVector.h>\n");
+    Sysout ("int (*__label_lookup)(char *);\n");
+    Sysout ("char * (*__text_function)(int);\n");
+
+    Sysout ("void fcn(MSV *);\n");
+    fprintf (Out, "void zfcn(unsigned char *, unsigned char *, struct MSV *); /* z functions */\n");
+
+    fprintf (Out, "char * sym_(int, unsigned char *, unsigned char *, struct MSV *); /* symbol table */\n");
+
+    fprintf (Out, "char * makeLock(char *, char *, char *, char, char *); /* global array lock service */\n");
+    fprintf (Out, "char * cleanLocks(char *); /* global array lock service */\n");
+    fprintf (Out, "char * releaseLock(char *, char *, char *); /* global array lock service */\n");
+    fprintf (Out, "char * eraseLocks(char *); /* global array lock service */\n");
+    fprintf (Out, "void add(const char *a,const char *b,char *c); /* math function */\n");
+    fprintf (Out, "void sub(const char *a,const char *b,char *c); /* math function */\n");
+    fprintf (Out, "void mult(const char *a,const char *b,char *c); /* math function */\n");
+    fprintf (Out, "void divx(const char *a,const char *b,char *c); /* math function */\n");
+    fprintf (Out, "void divi(const char *a,const char *b,char *c); /* math function */\n");
+    fprintf (Out, "void _fnumber(unsigned char *,unsigned char *,\n");
+    fprintf (Out, "       unsigned char *,unsigned char *, MSV *); /* math function */\n");
+
+    linepad (Sysout ("#include <mumpsc/global.h>"),
+             "Global array definitions");
+    linepad (0, "Interface to Mglobal():");
+    linepad (0, "g = command");
+    linepad (0, "key = key sought or stored");
+    linepad (0, "bd = value returned or stored");
+    linepad (0, "svPtr = address of state vector");
+
+    Sysout ("#ifndef SUB\n");
+    linepad (fprintf (Out, "#include <mumpsc/fcns.h>"),
+             "System support functions");
+    linepad (fprintf (Out, "#include <mumpsc/sysfunc.h>"),
+             "Many common global variables");
+    Sysout ("#endif\n");
+
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#+*+++++++++ Compiler Start ++++++++++++++++++++++++++++++++++++++++++
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    pd1cur      = 1;
+    symlen      = PS;
+    t0px        = 0;
+    t2          = 0;
+    cmdx        = 0;
+    setpiece    = 0;
+    forxmax     = 0;
+    forx        = 0;
+    forxFLG     = 0;
+    forLine     = 0;
+    pd1Last     = 0;
+    ExecLevel   = 0;
+    SymIncrFlg  = 0;
+    ArgMax      = 0;
+    IF_flg_max  = 0;
+    cvarx       = 0;
+
+    for (i=0; i<FBMAX; i++) ForBlocks[i] = -1;
+
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#+*++++++++++ Next Line ++++++++++++++++++++++++++++++++++++++++++++++
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+next_line:
+
+    EmitLabel = 0;
+    iiitmp=0; /* new temp pool for each line */
+    forLine = 0;
+// TryFlg=0;
+    CatchFlg=0;
+
+    strcpy(&pd1[1],"");
+
+    if ( fgets(&pd1[1],512,in) == NULL ) {
+        pd1cur = 9999;
+        pd1len = 1;
+        strcpy(&pd1[1],"");
+        }
+
+    else {
+        pd1cur = 1;
+        pd1len = 2048;
+        }
+
+    if ( pd1[strlen(&pd1[1])] < 32 ) pd1[strlen(&pd1[1])] = 0;  // <cr>
+    if ( pd1[strlen(&pd1[1])] < 32 ) pd1[strlen(&pd1[1])] = 0;  // <lf>
+
+    for (i = 1; pd1[i] != 0 && i < 512; i++)
+        if ( pd1[i] == '\t' ) pd1[i] = ' '; // convert tabs
+
+    lines++;
+    while ( IF_flg ) {
+        fprintf ( Out, "\t }\n" );
+        IF_flg--;
+        }
+
+    if ( pd1cur > pd1len ) {
+        if ( ExecLevel > 0 ) {
+            for (; ExecLevel > 0; ExecLevel--) {
+                fprintf (Out, "\t } while (0);   // dotted un-indent %d\n", ExecX - 1);
+                // fprintf (Out, "\t goto Do_Block_Return%d;    // return \n", ExecStack[--ExecX]);
+                fprintf (Out, "\t longjmp(Efor%dJ,99);    // return \n", ExecStack[--ExecX]);
+                fprintf (Out, "Do_Block_Bypass%d:\t svPtr->_Sym--;  \n",
+                         ExecStack[ExecX]);
+// ??????? aaaaaa	        fprintf (Out, "Do_Block_Bypass%d: ;  \n",
+                }
+            ExecLevel = 0;
+            }
+        goto abrtx;
+        }
+
+    if (pd1[pd1cur] == 0) {
+        pd1cur++;
+        goto next_line;
+        }
+
+    strcpy (cur_line, &pd1[pd1cur]); /* copy next program line */
+
+    if (pd1[pd1cur] == '%' || pd1[pd1cur] == '+') { /* inline C code */
+        fprintf (Out, "%s\n", &pd1[pd1cur + 1]);
+        while (pd1[pd1cur]) pd1cur++;
+        pd1cur++;
+        goto next_line;
+        }
+
+    if (pd1[pd1cur] == '#' || (pd1[pd1cur] == '/' && pd1[pd1cur+1] == '/' ) ) { //* comment
+        if ( pd1[pd1cur] == '/' ) pd1cur++;
+        fprintf (Out, "// %s\n", &pd1[pd1cur + 1]);
+        pd1cur++;
+        while (pd1[pd1cur]) pd1cur++;
+        pd1cur++;
+
+        if (!MAIN_flg && 0) {
+
+            Sysout ( "\nint main(int argc, char *argv[]) {\n\n");
+
+            cvarx=0;
+            fcninit(output_file);
+
+            fprintf(Out,"__label_lookup=_label_lookup;\n");
+            fprintf(Out,"__text_function=_text_function;\n");
+
+            Sysout("#include <mumpsc/cgi.h>\n");
+
+            Sysout("\t $SymPut(\"%%\",argv[0]); \n");
+            Sysout("\t if (argc>0) { \n");
+            Sysout("\t\t for (int i=0; i<argc; i++) { \n");
+            Sysout("\t\t\t char t[STR_MAX]; \n");
+            Sysout("\t\t\t sprintf(t,\"%%%%%%d\",i); \n");
+            Sysout("\t\t\t $SymPut(t,argv[i]); \n");
+            Sysout("\t\t\t } \n");
+            Sysout("\t\t } \n");
+
+            fprintf(Out,"\n\t try { \n");
+
+            Sysout_skip;
+            MAIN_flg = 1;
+            }
+        goto next_line;
+        }
+
+    i = pd1cur;
+    while (pd1[pd1cur] && pd1[pd1cur] != TAB) pd1cur++;
+
+    if (pd1[pd1cur]!=0)
+        while (pd1[pd1cur]!=0 && pd1[pd1cur] == TAB) pd1cur++;
+
+//**************
+// multiple TABs
+//**************
+
+    pd1cur = i;
+
+    if (pd1[pd1cur] != TAB) {
+        for (; pd1[pd1cur] != TAB && pd1[pd1cur] != 0; pd1cur++)
+            if (pd1[pd1cur]=='(')  while (pd1[pd1cur]!=')' && pd1[pd1cur]!=0) pd1cur++;
+
+        pd1[pd1cur] = 0;
+
+
+            {
+            int flg = 1;
+            int ii, j, k, kk = 0, n = 0;
+            int thistime=0;
+
+//      F_flg=0;
+
+            if (pd1[i] == '^' && pd1[i+1] == '^') {    //* function start
+                i = i+2;
+                F_flg = 1;
+                if (MAIN_flg) EP(0,ExecName);  //* entry point router
+                if (FCN_flg)  EP(1,ExecName);  //* entry point router
+                FCN_flg = 1;          //* am in subfunction
+                thistime=1;
+                }
+            else if (pd1[i] == '^' && pd1[i+1] != '^') {    //* function start
+                i = i+1;
+                F_flg = 1;
+                if (MAIN_flg) EP(0,ExecName);  //* entry point router
+                if (FCN_flg)  EP(1,ExecName);  //* entry point router
+                FCN_flg = 1;          //* am in subfunction
+                thistime=1;
+                }
+
+            ii = i;
+            for (; pd1[i] != 0; i++) {
+
+                if (pd1[i] == '(') {      //* open paren in label - must be function ep
+
+                    if (flg) {
+                        Sysout  (     "\n//=================================================================================\n");
+                        fprintf (Out, "// Entry Point %s + + + + + + +\n", &pd1[ii]);
+                        Sysout  (     "//=================================================================================\n\n");
+                        flg = 0;            //* arguments found
+                        }
+
+                    pd1[i] = 0;
+                    if (!F_flg && !MAIN_flg) goto Missing_Zmain;
+
+                    if (F_flg&&thistime) {            //* this is a C subfunction
+                        int ff=0;
+                        cvarx=0;
+                        strcpy(FunctionName,&pd1[ii]);
+                        fprintf (Out, "char * %s(struct MSV * svPtr, char * offset", &pd1[ii]);
+                        if (pd1[i+1]!=')') fprintf (Out,",");
+
+                        for (j = i + 1; pd1[j] != 0; j++) {       /* separately compiled extrinsic */
+                            if (pd1[j]=='+' ) { /* non mumpsc parameter */
+                                j++;
+                                while (1) {
+                                    fprintf (Out,"%c",pd1[j]);
+                                    j++;
+                                    if (pd1[j]==',' || pd1[j]==')') break;
+                                    }
+                                if (pd1[j]==')') {
+                                    ff=0;
+                                    goto fe1;
+                                    }
+                                fprintf (Out,",");
+                                continue;
+                                }
+                            if (isalpha(pd1[j])) ff=1;
+                            if ( (pd1[j] == ',' || pd1[j] == ')') && ff ) {
+                                fprintf (Out, "const char * _Arg%d%c", kk, pd1[j]);
+                                kk++;
+                                }
+fe1:
+                            if (pd1[j] == ')') {
+                                if (!ff) fprintf(Out,") ");
+                                fprintf (Out, "{\n\n");
+                                fcninit (output_file);
+                                break;
+                                }
+                            }
+                        /* ArgMax=kk+1; */
+
+                        fprintf (Out, "__label_lookup=%s_label_lookup;\n",FunctionName);
+                        fprintf (Out, "__text_function=%s_text_function;\n",FunctionName);
+                        fprintf (Out, "try { // try001\n ");
+                        Sysout ("svPtr->_SymPush++;\n");
+                        Sysout ("_SymPush++;\n");
+//                        fprintf (Out, "svPtr->_Sym++; // push symbol table\n");
+                        Sysout ("svPtr->start[svPtr->_Sym]=NULL;\n");
+                        SymIncrFlg = 1;
+                        fprintf (Out, "if (svPtr->_Sym > SYM_MAX) ");
+                        fprintf (Out, "ErrorMessage(\"Too many function calls\",svPtr->LineNumber);\n");
+                        fprintf (Out, "_doStackN[_doStx-1]=1;   //* flag to restore namespace\n");
+                        Sysout ("\tif (svPtr->Rargsx) { // EP1005\n");
+                        Sysout ("\t\t for (_i=0; _i<svPtr->Rargsx; _i++) strcpy(_Refs[_i],svPtr->Rargs[_i]);\n");
+                        Sysout ("\t\t _Refsx=svPtr->Rargsx;\n");
+                        Sysout ("\t\t }\n");
+                        }
+
+                    else {
+                        if (!isalnum(pd1[ii])) goto lab_err;
+//                        fprintf (Out, "try { // try002\n ");
+                        if (isdigit(pd1[ii])) fprintf(Out, "_" );
+                        fprintf (Out, "%s:\n", &pd1[ii]); // source code Label
+//                        fprintf (Out, "svPtr->_Sym++; // push symbol table\n");
+                        Sysout ("svPtr->start[svPtr->_Sym]=NULL;\n");
+                        SymIncrFlg = 1;
+//                        Sysout ("svPtr->_SymPush++;\n");
+                        Sysout ("_SymPush++;\n");
+                        fprintf (Out, "if (svPtr->_Sym > SYM_MAX) ");
+                        fprintf (Out, "ErrorMessage(\"Too many function calls\",svPtr->LineNumber);\n");
+                        fprintf (Out, "_doStackN[_doStx-1]=1;   //* flag to restore namespace\n");
+                        }
+
+                    pd1[i] = '(';
+                    for (j = i + 1; pd1[j] != 0; j++) {
+                        if (pd1[j]=='+') {
+                            while(1) {
+                                if (pd1[j]==',' || pd1[j]==')') break;
+                                j++;
+                                }
+                            if (pd1[j]==')') {
+                                j++;
+                                break;
+                                }
+                            i=j;
+                            continue;
+                            }
+                        if (pd1[j] == ',' || pd1[j] == ')') {
+                            k = pd1[j];
+                            pd1[j] = 0;
+                            if (strlen(&pd1[i+1])==0) break;
+
+                            if (F_flg) {
+                                fprintf (Out, /* C function */
+                                         "\t if (_Arg%d!=NULL) \n\t\t"
+                                         "sym_(100,(unsigned char *) \"%s\",(unsigned char *) _Arg%d,svPtr);"
+                                         " // Store Arguments EP1001\n",
+                                         n, &pd1[i + 1], n);
+                                fprintf (Out,
+                                         "\t strcpy (svPtr->RefParm[%d], \"%s\" ); // EP1002\n", n, &pd1[i+1]);
+                                }
+
+                            else 	{
+                                fprintf (Out,
+                                         "\t if (__Arg%d!=NULL) sym_(100,(unsigned char *) \"%s\",(unsigned char *) "
+                                         "__Arg%d,svPtr); // Store Arguments EP1003\n",
+                                         n, &pd1[i + 1], n);
+                                fprintf (Out,
+                                         "\t strcpy (svPtr->RefParm[%d], \"%s\" ); //EP1004\n", n, &pd1[i+1]);
+                                }
+
+                            n++;
+                            if (n>ArgMax) ArgMax=n;
+                            pd1[j] = k;
+                            if (k == ')') break;
+                            i = j;
+                            }
+                        }
+                    if (F_flg&&thistime) {
+                        fprintf(Out,"\t goto _eps;  /* entry point label router */\n");
+                        fprintf(Out,"_fcn: \n");
+                        }
+                    } // aaa
+                }
+
+            if (!flg && !F_flg)
+                fprintf (Out, "\t if (_ArgCount<%d) ErrorMessage(\"Bad argument count\",svPtr->LineNumber);\n", n);
+
+            if (flg) {
+                int i;
+                for (i=ii; pd1[i]!=0; i++)
+                    if (pd1[i]!=' ') {
+                        EmitLabel=1;
+                        if (!isalnum(pd1[ii])) goto lab_err;
+                        if (LabelsStart==NULL) {
+                            LabelsStart=malloc(sizeof(struct txt));
+                            if (LabelsStart==NULL) goto mem_err;
+                            LabelsStart->next=NULL;
+                            LabelsStart->lnbr=lines;
+                            LabelsStart->name=malloc(strlen(&pd1[ii])+1);
+                            if (LabelsStart->name==NULL) goto mem_err;
+                            if (isdigit(pd1[ii])) strcpy(LabelsStart->name,"_");
+                            else strcpy(LabelsStart->name,"");
+                            strcat(LabelsStart->name,&pd1[ii]);
+                            }
+                        else {
+                            p1=malloc(sizeof(struct txt));
+                            if (p1==NULL) goto mem_err;
+                            p1->next=LabelsStart;
+                            LabelsStart=p1;
+                            p1->lnbr=lines;
+                            p1->name=malloc(strlen(&pd1[ii])+1);
+                            if (p1->name==NULL) goto mem_err;
+                            if (isdigit(pd1[ii])) strcpy(LabelsStart->name,"_");
+                            else strcpy(LabelsStart->name,"");
+                            strcat(LabelsStart->name,&pd1[ii]);
+                            }
+                        break;
+                        }
+                }
+
+            pd1[pd1cur] = TAB; /* replace */
+            }
+        }
+    while (pd1[pd1cur] == TAB) pd1cur++;
+
+//------------------------------------------------------------------------
+//  Doty Indents
+//------------------------------------------------------------------------
+
+    if (pd1[pd1cur] == '.') {
+
+        j = 0;
+        for (i = pd1cur; pd1[i] == '.'||pd1[i]==' '; i++)
+            if (pd1[i]=='.') j++;  // how many levels?
+
+        if (j>10) {
+            printf("*** Too many block indents\n");
+            ernbr=99;
+            goto abrt1;
+            }
+
+        if (j > ExecLevel + 1) {  // skipped a level
+            printf ("*** Code level skip\n");
+            ernbr = 99;
+            goto abrt1;
+            }
+
+        if (ernbr=doty(j, &ExecLevel, &ExecName, DoRet, DoRetX, &pd1Last,
+                       pd1cur, ExecStack, &ExecX, ExecSym))
+            goto abrt1;
+        pd1cur = i;
+
+        }
+
+    else if (ExecLevel > 0) {
+        for (; ExecLevel > 0; ExecLevel--) {
+            fprintf (Out, "\t } while(0); // dotted un-indent %d\n", ExecX - 1);
+            SymCheck
+            // ??? fprintf (Out, "\t goto Do_Block_Return%d; // return \n", ExecStack[--ExecX]);
+            fprintf (Out, "\t longjmp(Efor%dJ,99); /* return */\n", ExecStack[--ExecX]);
+            fprintf (Out, "Do_Block_Bypass%d: ; \n",
+                     ExecStack[ExecX]);
+            }
+        ExecLevel = 0;
+        }
+
+    if (ExecLevel == 0) forxFLG = 0;
+
+//------------------------------------------------------------------------
+
+    xpx = j = 1;
+
+//************************
+// copy source line to xd
+//************************
+
+    pd1Last = pd1cur;
+
+    while ((xd[j++] = pd1[pd1cur++]) != 0);
+
+    Sysout ("/*=================================================================================*/\n");
+    if ((MAIN_flg || FCN_flg) && ! TryFlg) fprintf(Out, "svPtr->LineNumber=%d; // %s\n", lines, cur_line);
+    else fprintf(Out,"// %s\n", cur_line);
+    Sysout ("/*=================================================================================*/\n");
+
+    if (EmitLabel) fprintf(Out,"\n%s:\n",LabelsStart->name);
+    EmitLabel=0;
+
+    xd[j] = 0;
+
+next_cmnd:  // continue line entry point
+
+    if (IF_flg > IF_flg_max) IF_flg_max=IF_flg;
+    while (1) {
+        if (xpx >= 1024 || xd[xpx] == 0 ) { /* the order of these tests is important */
+            if (IF_flg) {
+                for (i = IF_flg; i > 0; i--) {
+                    fprintf (Out, "\t } ");
+                    if (ForBlocks[i]>=0) {
+                        fprintf (Out, "while (0); longjmp(for%dJ,99); /* FOR loop %d close */\n", ForBlocks[i], i);
+                        if (Blocks[i]==FOR) fprintf (Out,"For%dExit:;\n",ForBlocks[i]);
+                        ForBlocks[i]=-1;
+                        }
+                    else fprintf(Out,"\n");
+                    }
+                IF_flg = 0;
+                }
+            if (TryFlg) {
+                fprintf(Out,"\t}\n");
+                TryFlg=1;
+                }
+            if (CatchFlg) {
+                fprintf(Out,"\t}\n");
+                CatchFlg=0;
+                }
+            goto next_line;
+            }
+
+        if (xd[xpx] != ' ' && xd[xpx] != '\t')
+            break;
+        xpx++;
+        }
+
+//#++++++++++++++++++++++++
+//#++++ decode command word
+//#++++++++++++++++++++++++
+
+    p2px = xpx;
+    t2 = t0px = 0;
+    JOB_flg = 0;
+    POST_flg = 0;
+
+    if (strncmp(&xd[xpx],"//",2)==0) {
+        xpx=9999;
+        goto next_cmnd; // c++ style comment found
+        }
+
+    icmnd = tolower (xd[xpx]);
+
+        {
+        /*........................ check command word ...............................*/
+
+        char word[25];
+        static char *ctable[] =  {    "r","read",
+                                      "w","write","while",
+                                      "i","if",
+                                      "o","open",
+                                      "s","set", "sql", "sql", "shell",
+                                      "j","job",
+                                      "g","goto",
+                                      "m","merge",
+                                      "n","new",
+                                      "q","quit",
+                                      "x","xecute",
+                                      "f","for",
+                                      "h","halt","hang","html",
+                                      "e","else","export",
+                                      "d","do","declare", "database",
+                                      "k","kill",
+                                      "c","close","continue","catch",
+                                      "u","use",
+                                      "l","lock",
+                                      "t","try",
+                                      ";",
+                                      "zascii", "zmain","znumber","zd", "zexit",
+                                      "b","break",
+                                      ""
+                                 };
+
+        int wx=1, flg=1;
+        MergeFlg=0;
+        word[0]=icmnd;
+        while (isalpha (xd[++xpx])) word[wx++]=tolower(xd[xpx]);  /* scan thru rest of word */
+        word[wx]='\0';
+        for (i=0; strlen(ctable[i])!=0; i++)
+            if (strcmp(word,ctable[i])==0) {
+                flg=0;
+                break;
+                }
+        if (icmnd == ';' ) goto pstrtn;
+        if (flg) {
+            printf ("*** Warning, possible command spelling error: %s ",word);
+            printf ("in or near line %d\n", lines);
+            printf ("*** %s\n", &pd1[pd1Last]);
+            }
+        /*........................ check command word ...............................*/
+        }
+
+
+    if (xd[xpx] == ':') { // post conditionals
+        xpx++;
+
+        at_flg=atTest(xd, pd1, &pd1Last, lines);
+
+        if (at_flg==99) goto abrtx;
+
+        if (at_flg) {
+
+            char tmp[1024];
+            int i, j;
+
+            strcpy (tmp, "i ");
+            atCopy (at_flg, tmp);
+
+            INTERPRET
+
+            xpx = at_flg;
+            fprintf(Out, "\t if (svPtr->tpx) { /* postconditional */\n");
+            POST_flg = 1;
+            }
+        else {
+            if ((ierr = parse_ ())) goto parse_err;
+            fprintf(Out, "\t if (atoi( CSTR %s)) { /* postconditional */\n", Extract2(&pd1[sdlim]));
+            POST_flg = 1;
+            }
+        }
+
+
+//#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#+
+//#+ branch to correct command handler
+//#+
+//#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+pstrtn:
+
+    if (xd[xpx]) xpx++;
+
+// xxxxxxxxx
+
+    if (!MAIN_flg && !( icmnd == ZCMDS && tolower(xd[p2px+1]) == 'm') ) {
+
+        Sysout ( "\nint main(int argc, char *argv[]) { // begin main routine\n\n");
+
+        cvarx=0;
+        fcninit(output_file);
+
+        fprintf(Out,"__label_lookup=_label_lookup;\n");
+        fprintf(Out,"__text_function=_text_function;\n");
+
+        fprintf(Out,"\n\t try { \n");
+
+        Sysout_skip;
+        MAIN_flg = 1;
+
+        Sysout("#include <mumpsc/cgi.h>\n");
+
+        Sysout("\t strncpy((char *)svPtr->program, argv[0], 512); \n");
+        Sysout("\t $SymPut(\"%0\",argv[0]); \n");
+
+        Sysout("if (argc>1) { \n");
+        Sysout("\t char t[STR_MAX]; \n");
+        Sysout("\t for (int i=1; i<argc; i++) { \n");
+        Sysout("\t\t sprintf(t,\"%%%%%%d\",i); \n");
+        Sysout("\t\t $SymPut(t,argv[i]); \n");
+        Sysout("\t\t } \n");
+        Sysout("\t } \n");
+
+        }
+
+
+    switch (icmnd) {
+
+        case CLSQ:
+
+            Sysout ( "\t } /* user close */\n");
+            goto next_cmnd;
+
+        case OPSQ:
+
+            goto next_cmnd;
+
+        case TRY:
+
+            fprintf (Out, "try { ");
+            TryFlg=1;
+            if (xd[xpx]==' '||xd[xpx]==0) goto next_cmnd;
+            for (i=xpx; xd[i]!=' '&&xd[i]!=0; i++);
+            j=xd[i];
+            xd[i]=0;
+            if (strcmp(&xd[xpx],"NoMessages")==0) {
+                fprintf(Out,"svPtr->NOERR=1; ");
+                }
+            else goto try_unknown;
+            xd[i]=j;
+            xpx=i;
+            goto next_cmnd;
+
+ctch:
+            fprintf(Out,"catch(");
+            CatchFlg=1;
+            TryFlg=0;
+            if (xd[xpx]==' '||xd[xpx]==0) goto catch_error;
+            for (i=xpx; xd[i]!=' '&&xd[i]!=0; i++);
+            j=xd[i];
+            xd[i]=0;
+            flg=1;
+            for (k=0; strlen(except[k])!=0; k++)
+                if (strcmp(&xd[xpx],except[k])==0) {
+                    flg=0;
+                    break;
+                    }
+            if (flg) goto catch_unknown;
+            fprintf(Out,"%s ) {\n",&xd[xpx]);
+            xd[i]=j;
+            xpx=i;
+            goto next_cmnd;
+
+
+        case CMMNT:
+
+            p2px++;
+            if (xd[p2px]==';') {
+                if (TextStart==NULL) {
+                    TextStart=malloc(sizeof(struct txt));
+                    if (TextStart==NULL) goto mem_err;
+                    TextStart->name=malloc(strlen(&xd[p2px])+2);
+                    if (TextStart->name==NULL) goto mem_err;
+                    strcpy(TextStart->name,&xd[p2px+1]);
+                    TextStart->lnbr=lines;
+                    TextStart->next=NULL;
+                    goto next_line;
+                    }
+                p1=malloc(sizeof(struct txt));
+                if (p1==NULL) goto mem_err;
+                i=strlen(&xd[p2px])+2;
+                p1->name=malloc(i);
+                if (p1->name==NULL) goto mem_err;
+                strcpy(p1->name,&xd[p2px+1]);
+                p1->next=TextStart;
+                p1->lnbr=lines;
+                TextStart=p1;
+                goto next_line;
+                }
+
+            goto next_line;
+
+        case FCN:
+
+            printf ("*** Not supported\n");
+            printf ("*** %s\n", cur_line);
+            ExitCode=99;
+            goto abrtx;
+
+        case NEW:
+
+            exportflag=0;
+
+//      if (ExecSym[ExecX] > 0) {
+//            printf("*** More than one NEW command at this level\n");
+//            goto abrt1;
+//            }
+
+            if (xd[xpx]==' '||xd[xpx]==0) { /* no argument form */
+//            Sysout ( "\t svPtr->_Sym++; // new symbol table\n");
+                Sysout ( "\t if (svPtr->_Sym>SYM_MAX) ");
+                fprintf (Out, "ErrorMessage(\"Symbol Table Overflow\",svPtr->LineNumber);\n");
+                Sysout ( "\t svPtr->nstart=NULL;\n");
+                Sysout ("\t sym_(7,(unsigned char *) \"\",(unsigned char *) \"\",svPtr);\n");
+                ExecSym[ExecX] = 1;
+//            if (ExecX==0) {
+//                  Sysout ( "\t if (_doStx == 0) ");
+//                  fprintf (Out, "ErrorMessage(\"NEW not permitted\",svPtr->LineNumber);\n");
+//                  fprintf(Out,"\t _doStackN[_doStx-1]=1;\n");
+//                  }
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+                xpx++;
+                goto next_cmnd;
+                }
+
+//#++++++++++++++++++++++++++++++++
+//#+    Push  all locals except...
+//#++++++++++++++++++++++++++++++++
+
+            if (xd[xpx] == '(') {               //* specific
+
+                fprintf (Out, "\t {\n\t struct nmes *p1,*p2;\n");
+                fprintf (Out, "\t svPtr->nstart=NULL;\n");
+                xpx++;
+
+new2:
+
+                t0px = 1;
+                t2 = 1;
+                retz = NEW;
+                goto set;
+
+new_return:
+
+                if (strcmp (vd, "atmp") == 0) fprintf (Out, "\t keyfix(atmp);\n");
+
+                else {
+                    char tmp[256];
+                    strcpy (tmp, "\"");
+                    strcat (tmp, vd);
+                    strcat (tmp, "\"");
+                    strcpy (vd, tmp);
+                    }
+
+                fprintf (Out,
+                         "\t p1=(struct nmes *) malloc(sizeof (struct nmes));\n"
+                         "\t if (p1==NULL) ErrorMessage(\"Out of memory\",svPtr->LineNumber);\n"
+                         "\t p1->name=(char *) malloc(strlen((const char *) atmp+1));\n"
+                         "\t if (p1->name==NULL) ErrorMessage(\"Out of memory\",svPtr->LineNumber);\n");
+
+                fprintf (Out, "\t strmove((unsigned char *) p1->name,(unsigned char *) %s);\n", vd);
+
+                fprintf (Out,
+                         "\t p1->next=svPtr->nstart;\n"
+                         "\t svPtr->nstart=p1;\n");
+                xpx++;
+
+                if (xd[xpx] != ')' && xd[xpx]) {
+                    xpx++;
+                    goto new2;
+                    }
+
+                fprintf (Out, "\tsym_(7,(unsigned char *) \"\",(unsigned char *) \"\",svPtr); // new except (...) \n");
+                fprintf (Out, "\t }\n");
+                ExecSym[ExecX] = 1;
+                if (ExecX==0) {
+                    Sysout ( "\t if (_doStx == 0) ");
+//                  fprintf (Out, "ErrorMessage(\"NEW not permitted\",svPtr->LineNumber);\n");
+                    fprintf(Out,"\t _doStackN[_doStx-1]=1;\n");
+                    }
+
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+
+                xpx++;
+                goto next_cmnd;
+                }
+
+//#++++++++++++++++++++++++++++++++
+//#+    Push locals inclusive
+//#++++++++++++++++++++++++++++++++
+
+
+//      fprintf (Out, "\t sym_(8,\"\",\"\",svPtr); // new inclusive \n");
+            ExecSym[ExecX] = 1;
+//      if (ExecX==0) {
+//            Sysout ( "\t if (_doStx == 0) ");
+//            fprintf (Out, "ErrorMessage(\"NEW not permitted\",svPtr->LineNumber);\n");
+//            fprintf(Out,"\t _doStackN[_doStx-1]=1;\n");
+//            }
+
+//      Sysout ("\t sym_(99,(unsigned char *) \"\",(unsigned char *) \"\",svPtr);\n");
+
+            if (POST_flg) {
+                fprintf (Out, "\t } /* post conditional */\n");
+                POST_flg = 0;
+                }
+
+exports:
+
+new3:
+
+            t0px = 1;
+            t2 = 1;
+            retz = NEW1;
+            goto set;
+
+new1_return:
+
+            if (strcmp (vd, "atmp") == 0) fprintf (Out, "\t keyfix(atmp);\n");
+
+            else {
+                char tmp[256];
+                strcpy (tmp, "\"");
+                strcat (tmp, vd);
+                strcat (tmp, "\"");
+                strcpy (vd, tmp);
+                }
+
+            if (exportflag)
+                fprintf (Out, "\t sym_(SymMarkCopyFlag,(unsigned char *) %s,(unsigned char *) \"\",svPtr);   // mark copy flag\n", vd);
+            else
+                fprintf (Out, "\t sym_(100,(unsigned char *) %s,(unsigned char *) \"\",svPtr);   // create new variable at this level\n", vd);
+//            fprintf (Out, "\t sym_(9,(unsigned char *) %s,(unsigned char *) \"\",svPtr);   // set copy flag to zero\n", vd);
+            xpx++;
+
+            if (xd[xpx] != ' ' && xd[xpx]) {
+                xpx++;
+                goto new3;
+                }
+
+            for( ; xd[xpx]!=' ' && xd[xpx]!=0; xpx++);
+            goto next_cmnd;
+
+
+        case BREAK:
+
+            if (forLine) goto nobrk_err;
+
+            fprintf (Out, "\t svPtr->tpx=tpx%d; // break code: restore $t \n\t goto Do_Block_Bypass%d; // break code\n", ExecStack[ExecX-1], ExecStack[ExecX - 1]);
+            if (POST_flg) {
+                fprintf (Out, "\t } /* post conditional */\n");
+                POST_flg = 0;
+                }
+            goto next_line;
+
+        case LOCK: { /* lock group */
+
+            char Lf=' ';
+            char to[32];
+
+            if (xd[xpx] == ' ' || xd[xpx] == 0) { /* no argument form */
+                fprintf (Out, "\t Mltoa(getpid(),(char *) atmp);\n");
+                fprintf (Out, "\t if (svPtr->LockDone) cleanLocks((char *) atmp); /* remove locks for this job */\n");
+                fprintf(Out,"\t svPtr->LockDone = 0; /* indicates a lock has been performed */\n");
+                goto lck1;
+                }
+
+NxtLckArg:
+
+            fprintf(Out,"\t svPtr->LockDone = 1; /* indicates a lock has been performed */\n");
+            LockFlag=1;
+            retz = LOCK;
+            if (xd[xpx]=='+' || xd[xpx]=='-') Lf=xd[xpx++];
+            else Lf=' ';
+            if (xd[xpx] != '^') goto bad_lock;
+            goto set;
+
+lock_return:
+
+//      fprintf (Out,"\t { int i;\n"
+//            "\t   for (i=0; %s[i]!='\\0'; i++) if (%s[i]<32) {\n"
+//            "\t\t %s[i]='('; \n"
+//            "\t\t break; }\n\t   }\n",vd,vd,vd);
+
+//      fprintf (Out,"\t { int i;\n"
+//            "\t   for (i=strlen((const char *) %s)-1; i!=0; i--) if (%s[i]<32) {\n"
+//            "\t\t %s[i]=')'; \n"
+//            "\t\t break; }\n\t   }\n",vd,vd,vd);
+
+//      fprintf (Out,"\t { int i;\n"
+//            "\t   for (i=0; %s[i]!='\\0'; i++) if (%s[i]<32) {\n"
+//            "\t\t %s[i]=','; \n"
+//            "\t\t }\n\t   }\n",vd,vd,vd);
+
+            fprintf(Out, "\t keyfix(%s);\n",vd);
+
+            strcpy(to,"NULL");
+            if (xd[xpx+1] == ':') { /* timeout */
+                t2 = 1;
+                xpx += 2;
+                if ((ierr = parse_ ())) goto parse_err;
+                fprintf ( Out, "\t // TIMEOUT REQUESTED FOR %s SECONDS\n", &pd1[sdlim]);
+                strcpy(to,&pd1[sdlim]);
+                xpx--;
+                }
+
+            fprintf (Out, "\t Mltoa(getpid(),atmp);\n");
+            fprintf (Out,"\t if (strcmp((const char *) makeLock((char *) %s,(char *) \"1\",(char *) atmp,\'%c\',(char *) %s),(const char *) \"1\")==0) "
+                     "svPtr->tpx=1; else svPtr->tpx=0;\n",
+                     vd,Lf,to);
+
+lck1:
+            xpx++;
+            dirflg = 0;
+            if (xd[xpx] == ',') {
+                xpx++;
+                goto NxtLckArg;
+                }
+
+            if (xd[xpx] == 0 || xd[xpx] == ' ' || xd[xpx] == '\t') {
+
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+
+                goto next_cmnd;
+                }
+
+            goto next_cmnd;
+
+                } /* lock group */
+
+        case READ:
+
+            fprintf (Out, "\t if (svPtr->in_file[svPtr->io]==NULL) ");
+            fprintf (Out, "ErrorMessage(\"Read from input file\",svPtr->LineNumber);\n");
+
+            while (1) {
+
+                dirflg = 0;
+
+                if (xd[xpx] == '!' || xd[xpx] == '#') { // carriage control
+                    if (xd[xpx] != '#') i = 2;
+                    else i = 1;
+                    inout (&pd1[sdlim], i, "");
+                    goto cont_read;
+                    }
+
+                if (xd[xpx] == '?') { //* tab format
+                    t2 = 1;
+                    xpx++;
+                    if ((ierr = parse_ ())) goto parse_err;
+                    i = 3;
+                    inout (&pd1[sdlim], i, &pd1[sdlim]);
+                    goto cont_read;
+                    }
+
+                if (xd[xpx] == '"') { // text to be printed first
+                    t2 = 1;
+                    if ((ierr = parse_ ())) goto parse_err;
+                    i = 4;
+                    inout (&pd1[sdlim], i, "");
+                    goto cont_read;
+                    }
+
+                if (xd[xpx] == '*') { // direct mode
+                    xpx++;
+                    dirflg = 1;
+                    }
+
+                retz = READ;
+                goto set;  // process item to read
+
+set_return:
+
+                if (xd[xpx + 1] == ':') { // timeout
+                    t2 = 1;
+                    xpx += 2;
+                    if ((ierr = parse_ ())) goto parse_err;
+                    fprintf ( Out, "\t // TIMEOUT REQUESTED FOR %s SECONDS\n", &pd1[sdlim]);
+                    //linepad(fprintf(Out,"\t file[5]=stdin;"),"// unit ready for input");
+                    fprintf(Out,
+                            "\t if (svPtr->io==5) fflush(stdout);\n");
+                    fprintf (Out,
+                             "\t svPtr->tpx=TimeOut_getstr1(svPtr->io,gtmp,(char *) %s,%d); // Read string into gtmp\n",
+                             &pd1[sdlim],dirflg);
+
+// "\t svPtr->tpx=TimeOut_getstr1(svPtr->io,&xgtmp,%s,%d); // Read string into gtmp\n",
+
+                    fprintf (Out, "\t if (svPtr->tpx>=0) svPtr->tpx=1; else svPtr->tpx=0; // Set $Test\n");
+
+                    strcpy (&pd1[sdlim], "gtmp");
+                    xpx--;
+                    goto store;
+                    }
+
+
+                if (dirflg == 1) {
+
+
+                    fprintf (Out, "\t svPtr->tpx=DirectRead(svPtr->io,gtmp); // Read Direct\n");
+                    fprintf (Out, "\t sprintf((char *)atmp,\"%%d\",(char *) gtmp[0]);\n");
+                    strcpy (&pd1[sdlim], "atmp");
+
+                    }
+
+                else {
+
+//	      fprintf (Out, "\t svPtr->tpx=getstr1(svPtr->in_file[svPtr->io],&xgtmp); // Read string into gtmp\n");
+                    fprintf (Out, "\t svPtr->tpx=getstr1(svPtr->in_file[svPtr->io],&gtmp); // Read string into gtmp\n");
+
+                    fprintf (Out, "\t if (svPtr->tpx>=0) svPtr->tpx=1; else svPtr->tpx=0; // Set $Test\n");
+
+                    strcpy (&pd1[sdlim], "gtmp");
+//	      strcpy (&pd1[sdlim], "xgtmp");
+                    }
+
+store:
+                retz = READ;
+                goto set_store;
+
+cont_read:
+
+                xpx++;
+                dirflg = 0;
+                if (xd[xpx] == ',') xpx++;
+
+                if (xd[xpx] == 0 || xd[xpx] == ' ' || xd[xpx] == '\t') {
+
+                    if (POST_flg) {
+                        fprintf (Out, "\t } /* post conditional */\n");
+                        POST_flg = 0;
+                        }
+
+                    goto next_cmnd;
+                    }
+                }
+
+            goto next_cmnd;
+
+
+        case OPEN:
+
+openf:
+
+            t2 = 1;
+            if ((ierr = parse_ ())) goto parse_err;
+            fprintf (Out, "\t _i=atoi( CSTR %s);\n", Extract2(&pd1[sdlim]));
+            if (xd[xpx] != ':') goto arg_list_error;
+            xpx++;
+            t2 = 1;
+            if ((ierr = parse_ ())) goto parse_err;
+            if (strcmp ("tmp0", &pd1[sdlim]) != 0)
+                fprintf (Out, "\t strmove((unsigned char *) tmp0,(unsigned char *) %s);\n", Extract2(&pd1[sdlim]));
+
+            fprintf (Out, "\t for(_j=0; tmp0[_j]!=0 && tmp0[_j]!=\',\';_j++);\n");
+
+            fprintf (Out, "\t if (tmp0[_j]!=\',\') ");
+            fprintf (Out, "ErrorMessage(\"File open error\",svPtr->LineNumber);\n");
+
+            fprintf (Out, "\t tmp0[_j++]=0;\n");
+            fprintf (Out, "\t strmove((unsigned char *) gtmp,(unsigned char *) tmp0);\n");
+
+            fprintf (Out,
+                     "\t if (strcmp((const char *) &tmp0[_j],(const char *) \"old\")==0||"
+                     "strcmp((const char *) &tmp0[_j],(const char *) \"OLD\")==0) _new=0;\n");
+
+            fprintf (Out,
+                     "\t else if (strcmp((const char *) &tmp0[_j],(const char *) \"new\")==0||"
+                     "strcmp((const char *) &tmp0[_j],(const char *) \"NEW\")==0) _new=1;\n");
+
+            fprintf (Out,
+                     "\t else if (strcmp((const char *) &tmp0[_j],(const char *) \"append\")==0||"
+                     "strcmp((const char *) &tmp0[_j],(const char *) \"APPEND\")==0) _new=2;\n");
+
+            fprintf (Out, "\t else ");
+            fprintf (Out, "ErrorMessage(\"File open error\",svPtr->LineNumber);\n");
+
+            fprintf (Out, "\t if (svPtr->out_file[_i]!=NULL||svPtr->in_file[_i]!=NULL) ");
+            fprintf (Out, "ErrorMessage(\"File already open\",svPtr->LineNumber);\n");
+
+            fprintf (Out, "\t if (_new==1) { /* output */\n");
+
+            fprintf (Out, "\t\t svPtr->out_file[_i]=fopen((const char *) gtmp,\"w\");\n");
+
+            fprintf (Out, "\t\t if(svPtr->out_file[_i]==NULL) svPtr->tpx=0;\n");
+            fprintf (Out, "\t\t else svPtr->tpx=1;\n");
+            fprintf (Out, "\t }\n");
+            fprintf (Out, "\t else if (_new==2) { /* append */\n");
+
+            fprintf (Out, "\t\t svPtr->out_file[_i]=fopen((const char *) gtmp,\"a\");\n");
+
+            fprintf (Out, "\t\t if(svPtr->out_file[_i]==NULL) svPtr->tpx=0;\n");
+            fprintf (Out, "\t\t else svPtr->tpx=1;\n");
+            fprintf (Out, "\t }\n");
+            fprintf (Out, "\t else { /* input */\n");
+
+            fprintf (Out, "\t\t svPtr->in_file[_i]=fopen((const char *) gtmp,\"r\");\n");
+
+            fprintf (Out, "\t\t if(svPtr->in_file[_i]==NULL) svPtr->tpx=0;\n");
+            fprintf (Out, "\t\t else svPtr->tpx=1;\n");
+            fprintf (Out, "\t }\n");
+
+            if (xd[++xpx] != ',') {
+
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+                goto next_cmnd;
+                }
+
+            xpx++;
+            goto openf;
+
+
+        case ZCMDS:
+
+            p2px++;
+            if (xd[p2px] <= 90)
+                xd[p2px] += 32;  //lower case
+
+            if (xd[p2px] == 'n') {
+                fprintf (Out, "\t svPtr->gpad=1; // pad btree numeric subscript to the left\n");
+                goto next_line;
+                }
+
+            if (xd[p2px] == 'a') {
+                fprintf (Out, "\t svPtr->gpad=0; // nopad btree numeric subscript to the left\n");
+                goto next_line;
+                }
+
+            if (xd[p2px] == 'm') {  // ZMAIN subroutine
+
+                if (MAIN_flg) {
+                    printf ("*** in line %d Multiple Main programs\n", lines);
+                    ExitCode = 99;
+                    goto abrtx;
+                    }
+
+                else if (FCN_flg) {
+                    EP(1,ExecName);
+                    F_flg = 0;
+                    FCN_flg = 0;
+                    }
+
+                Sysout ( "\nint main(int argc, char *argv[]) {\n\n");
+
+                cvarx=0;
+                fcninit(output_file);
+
+                fprintf(Out,"__label_lookup=_label_lookup;\n");
+                fprintf(Out,"__text_function=_text_function;\n");
+
+
+                Sysout("\t $SymPut(\"%%\",argv[0]); \n");
+                Sysout("\t if (argc>0) { \n");
+                Sysout("\t\t for (int i=0; i<argc; i++) { \n");
+                Sysout("\t\t\t char t[STR_MAX]; \n");
+                Sysout("\t\t\t sprintf(t,\"%%%%%%d\",i); \n");
+                Sysout("\t\t\t $SymPut(t,argv[i]); \n");
+                Sysout("\t\t\t } \n");
+                Sysout("\t\t } \n");
+
+                fprintf(Out,"\n\t try { \n");
+
+                Sysout_skip;
+                MAIN_flg = 1;
+
+                goto next_line;
+                }
+
+            if (xd[p2px] == 'f') { // function subroutine
+
+                if (MAIN_flg) {
+                    epi (ExecName);
+                    MAIN_flg = 0;
+                    }
+
+                else if (FCN_flg) {
+                    fprintf (Out, "\n\n");
+                    linepad (fprintf (Out, "\t return EXIT_SUCCESS; }"), "Terminate Function");
+
+                    fprintf( Out, "} // end of try block\n");
+                    fprintf( Out, "\t catch(...) {\n");
+                    fprintf( Out, "\t\t cout << \"Uncaught error in or near line \" << svPtr->LineNumber << endl;\n");
+                    linepad (fprintf (Out, "\t Mglobal(CLOSE,tmp0,tmp1,svPtr);"), "Close Globals");
+                    fprintf( Out, "\t\t }\n");
+
+                    FCN_flg = 0;
+                    F_flg = 0;
+                    Sysout ( "//=================================================================================\n\n");
+                    }
+
+                fprintf (Out, "char * %s() {\n\n", &xd[xpx]);
+                Sysout ("//*** This module generated by Mumps Compiler ");
+                Sysout (RELEASE);
+                Sysout ("\n");
+                Sysout ("/*** This code is unverified - use at your own risk */\n\n");
+
+                fcninit(output_file);
+
+                FCN_flg = 1;
+                goto next_line;
+                }
+
+            if (xd[p2px] == 'd') { // write remainder of line to output
+                fprintf (Out, "\t %s\n", &xd[xpx]);
+                goto next_line;
+                }
+
+            if (xd[p2px] == 'r') { // zreturn
+                fprintf (Out, "\t return %s;\n", &xd[xpx]);
+                goto next_line;
+                }
+
+            if (xd[p2px] == 's') { // zseek
+                long i;
+                t2 = 1;
+                if ((ierr = parse_ ())) goto parse_err;
+                i = atol (&pd1[sdlim]);
+                goto next_cmnd;
+                }
+
+            if (xd[p2px] == 'c') { // zclose
+                linepad (fprintf (Out, "\t tmp0[0]=0; tmp1[0]=0;"), "Function Epilogue");
+                linepad (fprintf (Out, "\t Mglobal(CLOSE,tmp0,tmp1,svPtr);"), "Close Globals");
+                goto next_cmnd;
+                }
+
+            if (xd[p2px] == 'e') {
+
+                if (MAIN_flg) {
+                    epi (ExecName);
+                    MAIN_flg = 0;
+                    }
+                else {
+                    if (FCN_flg) {
+                        EP(1,ExecName);
+                        F_flg = 0;
+                        FCN_flg = 0;
+                        }
+                    else {
+                        fprintf (Out, "\n\n/********************** Function Epilogue ********************/\n");
+                        F_flg = 0;
+                        fprintf (Out, "\t _epilogue: return EXIT_SUCCESS\"\";\n}\n");
+                        MAIN_flg = 0;
+                        }
+                    }
+                }
+            goto next_cmnd;
+
+abrtx:
+
+            if (MAIN_flg == 0 && FCN_flg == 0) {
+                printf ("\n*** Warning: No Mumps Zmain or Zfunction\n");
+                ExitCode = 0;
+                }
+
+            if (MAIN_flg) {
+                epi (ExecName);
+                MAIN_flg = 0;
+                }
+
+            else {
+                if (FCN_flg) {
+                    EP(1,ExecName);
+                    F_flg = 0;
+                    FCN_flg = 0;
+                    }
+                else {
+                    }
+                }
+
+
+                {
+                time_t timex;
+                int i=0;
+                fclose (Out);
+                timex = time (&timex);
+                printf ("%d lines of Mumps; ", lines-1);
+                Out = fopen(output_file, "r");
+                output_file[strlen(output_file)-2] = '\0';
+                strcat(output_file,".cpp");
+                Final = fopen(output_file,"w");
+                while (fgets(tmp2,1024,Out)!=NULL) {
+                    i++;
+                    if (strncmp(tmp2,"INCLUDE",7)==0) {
+                        char file[64];
+                        FILE *incl;
+                        tmp2[strlen(tmp2)-1] = '\0';
+                        strcpy(file,&tmp2[8]);
+                        incl = fopen(file,"r");
+                        if (incl != NULL) {
+                            while (fgets(tmp2,1024,incl)!=NULL) {
+                                i++;
+                                fputs(tmp2,Final);
+                                }
+                            fclose(incl);
+                            remove(file);
+                            }
+                        continue;
+                        }
+                    fputs(tmp2,Final);
+                    }
+                fclose(Out);
+                fclose(Final);
+                output_file[strlen(output_file)-2] = '\0';
+                strcat(output_file,".m");
+                remove(output_file);   /* remove intermediate .m file */
+                printf ("%d lines of C++ generated\n",i);
+                }
+
+            // fclose (Out);
+
+            return ExitCode;
+
+            printf ("*** n line %d: Unrecognized command \n", lines);
+            goto next_line;
+
+
+        case IF:
+
+            if (xd[xpx] == ' ' || xd[xpx]=='\0') { /* no argument form */
+
+                xpx++;
+                fprintf (Out, "\t if (svPtr->tpx) {\n");
+                IF_flg++;
+                goto next_cmnd;
+                }
+
+            at_flg=atTest(xd, pd1, &pd1Last, lines);
+            if (at_flg==-1) goto abrtx;
+
+            if (at_flg) {
+
+                char tmp[1024];
+
+                strcpy (tmp, "i ");
+                atCopy (at_flg, tmp);
+
+                INTERPRET
+
+                xpx = at_flg;
+
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+
+                linepad (fprintf (Out, "\t if (svPtr->tpx) {"), "Test expression for True");
+                goto if_structure;
+                }
+
+if_again:
+
+            t2 = 1;
+            if ((ierr = parse_ ()))
+                goto parse_err;
+            linepad (fprintf (Out, "\t svPtr->tpx=0;"), "Default $Test indicator");
+            linepad (fprintf (Out, "\t if (numcomp((unsigned char *) %s,(unsigned char *) \"0\")) {",
+                              Extract2(&pd1[sdlim])), "Test expression for True");
+            pl = fprintf (Out, "\t svPtr->tpx=1;");
+            linepad (pl, "Set $Test indicator True");
+
+if_structure:
+
+            tpx = 1;
+            if (xd[xpx + 1] != '{')
+                IF_flg++;
+            if (IF_flg>0) ForBlocks[IF_flg]=ForBlocks[IF_flg-1];
+            Blocks[IF_flg]=IF;
+
+            if (xd[xpx] == ',') {
+                xpx++;
+                goto if_again;
+                }
+
+            goto next_cmnd;
+
+
+        case WRITE:
+
+            fprintf (Out, "\t if (svPtr->out_file[svPtr->io]==NULL) \n\t\t");
+            fprintf (Out, "ErrorMessage(\"Write to input file\",svPtr->LineNumber); // W1001\n");
+
+            at_flg=atTest(xd, pd1, &pd1Last, lines);
+            if (at_flg==-1) goto abrtx;
+
+            if (at_flg) {
+
+                char tmp[1024];
+
+                strcpy (tmp, "w ");
+                atCopy (at_flg, tmp);
+
+                INTERPRET
+
+                xpx = at_flg;
+
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+                goto next_cmnd;
+                }
+
+            t0px = 0;
+
+            while (1) {
+
+                if (xd[xpx] == '!' || xd[xpx] == '#') { //* new line or page
+                    i = 1;
+                    if (xd[xpx] != '#')
+                        i = 2;
+                    xpx++;
+                    goto iosub;
+                    }
+
+                if (xd[xpx] == '*') {             // "*" output*/
+                    xpx++;
+                    t2 = 1;
+                    if ((ierr = parse_ ()))
+                        goto parse_err;
+                    linepad (fprintf (Out, "\t _i=atoi( CSTR %s);", &pd1[sdlim]), "Convert to integer");
+
+
+
+
+                    linepad (fprintf (Out, "\t putchar(_i);"), "Direct output");
+
+
+                    i = 4;
+                    goto iosub1;
+                    }
+
+                if (xd[xpx] == '?') { /*tab */
+                    t2 = 1;
+                    xpx++;
+                    if ((ierr = parse_ ())) goto parse_err;
+                    i = 3;
+                    goto iosub;
+                    }
+
+                t2 = 1;
+                if ((ierr = parse_ ())) goto parse_err;
+                i = 4;
+
+iosub:
+                inout (&pd1[sdlim], i, &pd1[sdlim]);
+
+iosub1:
+
+                if (xd[xpx] == ',') {
+                    xpx++;
+                    continue;
+                    }
+
+                if (xd[xpx] == 0 || xd[xpx] == ' ' || xd[xpx] == '\t') {
+                    if (POST_flg) {
+                        fprintf (Out, "\t } /* post conditional */\n");
+                        POST_flg = 0;
+                        }
+                    goto next_cmnd;
+                    }
+                }
+
+
+        case JOB:
+
+            linepad (fprintf (Out, "\t if (fork()!=0) {"), "I am child process if zero");
+            JOB_flg = 1;
+            goto do_entry;
+
+job_return:
+
+            fprintf (Out, "\t}");
+            goto next_line;
+
+        case MERGE:
+
+            MergeFlg=1;
+
+        case SET:
+
+            if (toupper(xd[p2px+1])=='H') {  /* SHELL command */
+
+                char tmp[4096];
+                strcpy((char *)tmp,&xd[p2px]);
+                INTERPRET(tmp);
+                goto next_line;
+                }
+
+            if (toupper(xd[p2px+1])=='Q') { //* SQL
+
+                char tmp[4096];
+                strcpy((char *)tmp,&xd[p2px]);
+                INTERPRET(tmp);
+                goto next_line;
+
+                if (strncasecmp(&xd[xpx],"login",5)==0) { //* login
+                    char tmp[1024];
+                    strcpy(tmp,"%sql%=$zx(\"login\",");
+                    strcat(tmp,&xd[xpx+6]);
+                    strcat(tmp,")");
+                    strcpy(xd,tmp);
+                    xpx=0;
+                    }
+
+                else if (strncasecmp(&xd[xpx],"logout",6)==0) { //* logout
+                    char tmp[1024];
+                    strcpy(tmp,"%sql%=$zx(\"logout\")");
+                    strcpy(xd,tmp);
+                    xpx=0;
+                    }
+
+                else if (strncasecmp(&xd[xpx],"exec",4)==0) { //* sql command
+                    char tmp[1024];
+                    strcpy(tmp,"%sql%=$zx(\"exec\",");
+                    strcat(tmp,&xd[xpx+5]);
+                    strcat(tmp,")");
+                    strcpy(xd,tmp);
+                    xpx=0;
+                    }
+
+                else if (strncasecmp(&xd[xpx],"array",5)==0) { //* sql command
+                    char tmp[1024];
+                    strcpy(tmp,"%sql%=$zx(\"array\",");
+                    strcat(tmp,&xd[xpx+6]);
+                    strcat(tmp,")");
+                    strcpy(xd,tmp);
+                    xpx=0;
+                    }
+                else {
+                    printf ("*** Unknown SQL command\n");
+                    printf ("*** In or near line %d\n", lines);
+                    printf ("*** %s\n", &pd1[pd1Last]);
+                    ExitCode = 99;
+                    goto abrtx;
+                    }
+                }
+
+
+            retz = SET;
+
+set:
+
+                {
+                int i;
+                for (i=0; i<lhsx; i++) free (lhs[i]);
+                }
+
+            lhsf=lhsx=0;
+
+            if (xd[xpx]=='(') {
+                lhsf=1;
+                xpx++;
+                }
+
+            Set_flg = 0;
+
+            at_flg=atTest(xd, pd1, &pd1Last, lines);
+            if (at_flg==99) goto abrtx;
+
+            if (at_flg && retz==READ) {
+
+                char tmp[1024];
+                int i, j;
+
+                strcpy (tmp, "r ");
+                atCopy (at_flg, tmp);
+
+                INTERPRET
+
+                xpx = at_flg;
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+                goto next_cmnd;
+                }
+
+            if (at_flg) {
+
+                char tmp[1024];
+                int i, j;
+
+                strcpy (tmp, "s ");
+                atCopy (at_flg, tmp);
+
+                INTERPRET
+
+                xpx = at_flg;
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+                goto next_cmnd;
+                }
+
+nxt_lhs:
+
+            t0px = 1;
+            t2 = 1;
+            setname[0] = 0;
+            if ((ierr = parse_ ())) goto parse_err;
+            strcpy (vd, &v1d[1]);
+
+            LocalArray (vd, &Set_flg);    //* check and process local array ref
+
+            if (v1d[1] == '^')
+                if (retz==NEW1 || retz==NEW) goto nogblpermitted;
+
+            GlobalArray(v1d, &GBL_flg, vd);    //* check and process global array
+
+            if (retz == KILL) goto kill_return;
+            if (retz == NEW) goto new_return;
+            if (retz == NEW1) goto new1_return;
+            if (retz == LOCK) goto lock_return;
+
+            if (lhsx>24) goto too_lhs;
+            lhs[lhsx]=malloc(strlen(vd)+1);
+            if (lhs[lhsx]==NULL) goto mem_err;
+            strcpy(lhs[lhsx],vd);
+            lhsGF[lhsx]=GBL_flg;
+            lhsx++;
+            if (xd[xpx+1]==',' || xd[xpx+1]==')') {
+                if (xd[xpx+1]!=')') {
+                    xpx+=2;
+                    goto nxt_lhs;
+                    }
+                }
+            if (lhsf) xpx++;
+
+            if (retz == READ) goto set_return;
+            xpx += 2;
+            t0px = 0;
+            t2 = 1;
+
+            if (MergeFlg) {
+                t0px=1;
+                setname[0]='\0';
+                fprintf (Out, "\t strcpy((char *) tmp%d, (const char *) atmp); /* hold result */\n",iiitmp);
+                MergeTmp=iiitmp++;
+                memcheck(iiitmp);
+                }
+
+            if ((ierr = parse_ ())) goto parse_err; /* process RHS */
+
+            if (MergeFlg) {
+                strcpy (vd, &v1d[1]);
+                LocalArray (vd, &Set_flg);    //* check and process local array ref
+                GlobalArray(v1d, &GBL_flg, vd);    //* check and process global array
+                if (strcmp(vd,"atmp")==0) sprintf(lhs[0],"tmp%d",MergeTmp);
+                fprintf (Out, "\t f=Merge(%s,%s,svPtr);\n",lhs[0],vd);
+                fprintf (Out, "\t if (f!=0) ErrorMessage(\"Merge failed \",svPtr->LineNumber);\n");
+                xpx++;
+                goto rhs1;
+                }
+
+set_store:
+
+            for (i=0; i<lhsx; i++) {
+                GBL_flg=lhsGF[i];
+
+                if (GBL_flg) {
+                    if (retz == READ )
+                        fprintf (Out, "\t f=Mglobal(STORE,%s,(unsigned char *)%s,svPtr);\n", Extract2(lhs[i]),Extract2(&pd1[sdlim]));
+                    if (retz == SET ) {
+//                  if (!lhsf) { lhsx++; lhs[0]=vd; }
+                        fprintf (Out, "\t f=Mglobal(STORE,%s,(unsigned char *)%s,svPtr);\n", Extract2(lhs[i]),Extract2(&pd1[sdlim]));
+                        }
+                    if (retz == LOCK ) fprintf (Out, "\t f=Mglobal(LOCK,%s,\"\",lhs[i],svPtr);\n");
+                    }
+
+                else if (vd[0] == '$' && (tolower (vd[1]) == 'p')) { // Process LHS $PEICE
+
+                    unsigned char var[256];
+                    unsigned char pat[256];
+                    unsigned char strt[256];
+                    unsigned char end[256];
+                    unsigned char rstr[256];
+
+                    for (i = 0; vd[i] < 128; i++);
+                    strcpy (var, &vd[i + 1]);
+                    for (j = 0; var[j] < 128; j++);
+                    var[j] = 0;
+
+                    for (i++; vd[i] < 128; i++);
+                    strcpy (pat, &vd[i + 1]);
+                    for (j = 0; pat[j] < 128; j++);
+                    pat[j] = 0;
+
+                    for (i++; vd[i] < 128 && vd[i] != 0; i++);
+                    strcpy (strt, &vd[i + 1]);
+                    for (j = 0; strt[j] < 128; j++);
+                    strt[j] = 0;
+
+                    for (i++; vd[i] < 128 && vd[i] != 0; i++);
+
+                    if (vd[++i] == 0) strcpy (end, "\"-1\"");
+
+                    else {
+                        strcpy (end, &vd[i]);
+                        for (j = 0; end[j] < 128; j++) ;
+                        end[j] = 0;
+                        }
+
+                    strcpy(pat,Extract2(pat)); /* error in fprintf processing makes this necessary */
+                    strcpy(strt,Extract2(strt)); /* error in fprintf processing makes this necessary */
+                    strcpy(end,Extract2(end)); /* error in fprintf processing makes this necessary */
+                    if (strlen(strt)==0) strcpy(strt,"\"1\"");
+                    strcpy(rstr,Extract2(&pd1[sdlim]));
+                    fprintf (Out, "\t _piece((unsigned char *) %s,(unsigned char *) %s,(unsigned char *) %s,(unsigned char *) %s,(unsigned char *) %s,1,(unsigned char *) %s,svPtr);\n",
+                             Extract1(var), Extract2(var), pat, Extract2(strt), Extract2(end), rstr);
+                    }
+
+                else {
+
+                    if (cvar(lhs[i])) {
+                        fprintf (Out, "\t strcpy( (char *) %s, (const char *) %s); // Store result\n", lhs[i], Extract2(&pd1[sdlim]));
+                        }
+                    else {
+                        if (Set_flg) fprintf (Out, "\t sym_(0,(unsigned char *)%s,(unsigned char *)%s,svPtr); // Store result\n", lhs[i], Extract2(&pd1[sdlim]));
+                        else         fprintf (Out, "\t sym_(0,(unsigned char *)\"%s\",(unsigned char *)%s,svPtr); // Store result\n", lhs[i], Extract2(&pd1[sdlim]));
+                        }
+                    }
+                } /* lhs */
+
+rhs1:
+
+            if (retz == READ) goto cont_read;
+
+            if (xd[xpx] == ',') {
+                xpx++;
+                goto set;
+                }
+
+            if (POST_flg) {
+                fprintf (Out, "\t } /* post conditional */\n");
+                POST_flg = 0;
+                }
+
+            goto next_cmnd;
+
+// CONTINUE (form of QUIT)
+
+cntnue:
+        case QUIT:
+
+            if (ExecLevel == 0 && forxFLG == 0) {
+
+                Sysout ("\t if (svPtr->Rargsx) { // call-by-reference? \n");
+                Sysout ("\t\t int i;\n");
+                Sysout ("\t\t unsigned char *tmp = new unsigned char[STR_MAX];\n");
+                Sysout ("\t\t for (i=0; i<svPtr->Rargsx; i++) {\n");
+                Sysout ("\t\t\t sym_(1,(unsigned char *) svPtr->RefParm[i],(unsigned char *) tmp,svPtr);\n");
+                Sysout ("\t\t\t svPtr->_Sym--;\n");
+                Sysout ("\t\t\t sym_(0,(unsigned char *) svPtr->Rargs[i],(unsigned char *) tmp,svPtr);\n");
+                Sysout ("\t\t\t svPtr->_Sym++;\n");
+                Sysout ("\t\t\t }\n");
+                Sysout ("\t\t }\n");
+                fprintf (Out, "\t strmove((unsigned char *) _ReturnVal,(unsigned char *) \"\");\n");
+
+                if (xd[xpx] != ' ' && xd[xpx] != 0) {
+                    t2 = 1;
+                    if ((ierr = parse_ ())) goto parse_err;
+                    fprintf (Out, "\t strmove((unsigned char *) _ReturnVal,(unsigned char *) %s);\n", Extract2(&pd1[sdlim]));
+                    }
+
+                if (F_flg) {
+
+//	      fprintf (Out, "\t for (_i=0; _i<svPtr->_SymPush; _i++) _SymFree(1,svPtr); /* pop symbol table */;\n");
+                    fprintf (Out, "\t for (_i=0; _i<_SymPush; _i++) _SymFree(1,svPtr); /* pop symbol table */;\n");
+                    fprintf (Out, "\t return (char *) _ReturnVal;\n");
+                    }
+
+                else {
+                    fprintf (Out, "\t if (_doStackN[_doStx]) {  _doStackN[_doStx]=0; } // Q1001\n");
+
+                    if (SymIncrFlg) {
+                        fprintf (Out, "\t _SymFree(1,svPtr); \n");
+                        }
+                    else {
+                        fprintf (Out, "\t _SymFree(1,svPtr); \n");
+//                  SymCheck
+//                  fprintf (Out, " \n\t\t }\n");
+                        }
+                    fprintf (Out, "\t if (_doStx > 0) { \n\t\t longjmp(_doStack[_doStx],99); \n\t\t }\n");
+                    fprintf (Out, "\t else ErrorMessage(\"Too Many Quits\",svPtr->LineNumber);\n");
+                    }
+                }
+
+            else {
+                if (IF_flg==0 || ForBlocks[IF_flg]<0) fprintf (Out, "\t break;\n");
+                else  fprintf (Out, "\t goto  For%dExit;\n",ForBlocks[IF_flg]);
+
+                if (Blocks[IF_flg]==IF) {
+                    IF_flg--;
+                    fprintf (Out,"\t } /* if block */\n");
+                    }
+
+                }
+
+            if (POST_flg) {
+                fprintf (Out, "\t } /* post conditional */\n");
+                POST_flg = 0;
+                }
+            goto next_cmnd;
+
+
+        case XECUTE:
+
+            {
+            char tmp[1024];
+            int i, j;
+
+            strcpy (tmp, "x ");
+            j=strlen(tmp);
+            for (i=xpx; xd[i]!=0; i++) {
+                if (xd[i]!='\"') {
+                    tmp[j++]=xd[i];
+                    }
+                else {
+                    tmp[j++]='\\';
+                    tmp[j++]=xd[i];
+                    }
+                }
+
+            tmp[j]=0;
+            INTERPRET
+
+            if (POST_flg) {
+                fprintf (Out, "\t } // post conditional\n");
+                POST_flg = 0;
+                }
+            }
+        xpx=1024;
+        goto next_cmnd;
+
+
+        case FOR:  /* also WHILE */
+
+            for_fcn_flg=0;
+            for_fcn_flg2=0;
+            forxFLG=1;
+            forLine=1;
+            if (xd[xpx] == ' ') {			//* argumentless form
+                linepad (fprintf (Out, "\t while(1) {"), "Argumentless FOR");
+                if (xd[xpx + 1] != '{') IF_flg++;
+                goto next_cmnd;
+                }
+
+            for_mult =-1;
+            SinglesFlg = 0;
+
+for_again:
+
+            t0px = 1;
+
+            if ( xd[xpx] == '$' ) { // while case - no start, no finish
+                strcpy(forv,"");
+                forx++;
+                if (forx > forxmax) forxmax=forx;
+                goto while01;
+                }
+
+            if ((ierr = parse_ ())) goto parse_err;
+
+//*   check if FOR variables allocated
+
+            forx++;
+            if (forx > forxmax) forxmax=forx;
+
+            xpx += 2;
+            strcpy (forv, &v1d[1]);	// retain loop index variable name
+
+for_again2:
+
+            if ( xd[xpx] == '$' ) { // for i=$xxx(aaa) case
+                for_fcn_flg=1;  // a function
+                for_fcn_flg2=1;
+                fprintf (Out,
+                         "\t sym_(0, (unsigned char *) \"%s\",(unsigned char *) \"\", svPtr); /* inite loop variable */\n",
+                         forv);
+                fprintf (Out, "For_Group%d: \n",forx);
+                }
+
+            t2 = 1;
+            t0px = 0;
+            if ((ierr = parse_ ())) goto parse_err;
+
+            if (for_fcn_flg) {
+                goto one_arg;
+                }
+
+            fprintf (Out,
+                     "\t strmove((unsigned char *) for%d_init, (unsigned char *) %s);\n",
+                     forx, Extract2(&pd1[sdlim]));	//* initial index value
+
+            if (xd[xpx] == ',' || xd[xpx] == '\0' || xd[xpx] == ' ') {
+                fprintf (Out,
+                         "\t sym_(0, (unsigned char *) \"%s\",(unsigned char *) for%d_init, svPtr); /* inite loop variable */\n",
+                         forv, forx);
+                SinglesFlg = 1;
+                goto singles;
+                }
+
+            if (xd[xpx] != ':') goto arg_list_error;
+
+            for_fcn_flg=0;  // is the increment a function?
+            t2 = 1;
+            xpx++;
+
+while01:
+
+            if ( xd[xpx]=='$' ) {
+
+                for_fcn_flg=1;  // incr is a function
+
+                if (strlen(forv)) {
+                    if (cvar(forv))
+                        fprintf (Out, "\t strcpy(%s,for%d_init); /* init loop variable */\n",
+                                 forv, forx);
+
+                    else fprintf (Out,
+                                      "\t sym_(0,(unsigned char *) \"%s\",(unsigned char *) for%d_init,svPtr); /* init loop variable */\n",
+                                      forv, forx);
+                    }
+                fprintf (Out, "For_Group%d: \n",forx);
+                }
+
+            t2 = 1;
+            t0px = 0;
+
+            if ((ierr = parse_ ())) goto parse_err;
+
+            fprintf (Out, "\t strmove( (unsigned char *) for%d_incr, (unsigned char *) %s);\n",
+                     forx, Extract2(&pd1[sdlim]));	//* increment amount
+
+            if (xd[xpx] != ':') FOR_limit = 0;                                //* no upper limit
+
+            else {
+                t2 = 1;
+                xpx++;
+                if ((ierr = parse_ ())) goto parse_err;
+                fprintf (Out, "\t strmove((unsigned char *) for%d_lim,(unsigned char *) %s);\n",
+                         forx, Extract2(&pd1[sdlim]));	//* upper limit
+                FOR_limit = 1;
+                }
+
+one_arg:
+
+            if (!for_fcn_flg) {
+
+                fprintf (Out, "\t if (strchr((char *) for%d_incr,'.')) { \n"
+                         "\t     for%dD=atof(for%d_incr);\n"
+                         "\t     for%dF=for%dD<0.0 ? 1 : 0;\n"
+                         "\t     for%dT=1;\n"
+                         "\t     }\n",
+                         forx,forx,forx,forx,forx,forx);
+
+                fprintf (Out, "\t else { \n"
+                         "\t     for%d=atol(for%d_incr); \n"
+                         "\t     for%dF=for%d<0 ? 1 : 0;\n"
+                         "\t     for%dT=0;\n"
+                         "\t     } /* increment */\n",
+                         forx,forx,forx,forx,forx);
+
+                if (cvar(forv))
+                    fprintf (Out, "\t for ( strcpy(%s,for%d_init); /* init loop variable */\n",
+                             forv, forx);
+
+                else	fprintf (Out,
+                                     "\n\t for ( sym_(0, (unsigned char *) \"%s\", (unsigned char *) for%d_init, svPtr);"
+                                     " // init loop variable\n\n",
+                                     forv, forx);
+
+                if (FOR_limit) {
+                    if (cvar(forv))
+                        fprintf (Out,
+                                 "\t for%dF ? /* loop increments or decrements? */\n"
+                                 "\t numcomp((unsigned char *) %s ,(unsigned char *) for%d_lim) >= 0: /* limit expression */\n"
+                                 "\t numcomp((unsigned char *) %s ,(unsigned char *) for%d_lim) <= 0; /* select compare method */\n\n",
+                                 forx, forv, forx, forv, forx);
+                    else
+                        fprintf (Out,
+                                 "\t for%dF ? /* loop increments or decrements? */\n"
+                                 "\t numcomp((unsigned char *) sym_(11,(unsigned char *) \"%s\", _dummy,svPtr),\n"
+                                 "\t (unsigned char *) for%d_lim) >= 0 /* GE limit value? */\n\t :\n"
+                                 "\t numcomp((unsigned char *) sym_(11,(unsigned char *) \"%s\", _dummy,svPtr),\n"
+                                 "\t (unsigned char *) for%d_lim) <= 0; /* LE limit value */\n\n",
+                                 forx, forv, forx, forv, forx);
+                    }
+
+                else {
+                    fprintf (Out, "\t\t1;  /* limit expression - no limit */\n");
+                    }
+
+                if (cvar(forv))
+                    fprintf (Out,
+                             "\t       for%dT ? add3( %s, for%dD, %s)\n"
+                             "\t              : add1( %s, for%d, %s) )\n",
+                             forx, forv, forx, forv, forv, forx, forv);
+                else
+                    fprintf (Out,
+                             "\t for%dT ? /* increment */\n"
+                             "\t add3( sym_(11, (unsigned char *) \"%s\", _dummy, svPtr), for%dD, (char *) _dummy),\n"
+                             "\t sym_(0,(unsigned char *) \"%s\",(unsigned char *) _dummy,svPtr)\n"
+                             "\t : \n\t add1( (const char *) sym_(11, (unsigned char *) \"%s\", _dummy, svPtr), for%d, (char *) _dummy),\n"
+                             "\t sym_(0,(unsigned char *) \"%s\", _dummy,svPtr))\n\n",
+                             forx, forv, forx, forv, forv, forx, forv);
+
+singles:
+
+                if (for_mult>=0)
+                    fprintf (Out, "\t if (setjmp(for%dJ)==0) goto For%d;\n\n", for_mult, for_mult);
+                else  fprintf (Out, "\t if (setjmp(for%dJ)==0) goto For%d;\n\n", forx, forx);
+
+                if (xd[xpx] == ',') {
+                    xpx++;
+                    for_mult = forx;
+                    goto for_again2;
+                    if (SinglesFlg) {
+                        goto for_again2;
+                        }
+                    else goto for_again;
+                    }
+
+                }
+
+            else {  // function increment section
+
+                if ( strlen(forv) && ! for_fcn_flg2 )  {
+                    fprintf (Out, "\t sym_( 0, ( unsigned char * ) \"%s\", ( unsigned char * ) for%d_incr, svPtr);"
+                             " /* set loop variable */\n",
+                             forv, forx);
+                    fprintf (Out, "\t if (strcmp( for%d_incr, for%d_lim)==0) goto For%dExit;"
+                             " // exit if match\n\n",
+                             forx,forx,forx);
+                    }
+                else if ( strlen(forv) && for_fcn_flg2 )  {
+
+                    fprintf (Out,
+                             "\t sym_( 0, ( unsigned char * ) \"%s\", ( unsigned char * ) %s, svPtr); /* set loop variable */\n",
+                             forv, Extract2(&pd1[sdlim]));
+
+                    fprintf (Out,
+                             "\t if (strcmp( (char *) %s, \"0\")==0 || strlen( (const char *) %s)==0 ) goto For%dExit;"
+                             " // exit if match\n",
+                             Extract2(&pd1[sdlim]), Extract2(&pd1[sdlim]),forx);
+                    }
+                else {
+                    fprintf (Out,
+                             "\t if (strcmp( for%d_incr, \"0\")==0 || strlen(for%d_incr)==0 ) goto For%dExit;"
+                             " // exit if match\n",
+                             forx,forx,forx,forx);
+                    }
+
+                fprintf (Out, "\t if ( setjmp( for%dJ ) == 0 ) goto For%d;\n", forx, forx);
+                fprintf (Out, "\t goto For_Group%d;\n", forx);
+
+                // if val !=limit goto For%d entry
+
+                }
+
+            if (xd[xpx] == ' ' ||
+                    xd[xpx] == 0 ||
+                    xd[xpx] == '\t') {
+                if (xd[xpx + 1] != '{') IF_flg++;
+                if (for_mult>=0) {
+                    ForBlocks[IF_flg]=for_mult;
+                    fprintf (Out, "\t goto For%dExit; /* bypass block */\n\n", for_mult);
+                    fprintf (Out, "For%d: /* FOR loop entry point */\n",  for_mult);
+                    }
+                else  {
+                    fprintf (Out, "\t goto For%dExit; /* bypass block */\n\n", forx);
+                    fprintf (Out, "For%d: /* FOR loop entry point */\n",  forx);
+                    ForBlocks[IF_flg]=forx;
+                    Blocks[IF_flg]=FOR;
+                    }
+                fprintf (Out, "\t do { \n\t svPtr->LineNumber=%d;\n", lines);
+                goto next_cmnd;
+                }
+
+            goto arg_list_error;
+
+
+        case HALT:
+
+            if (toupper(xd[p2px+1])!='T' && xd[xpx] == ' ' || xd[xpx] == 0) {
+                if (MAIN_flg) fprintf (Out, "\t goto _epilogue;\n");
+                if (FCN_flg) fprintf (Out, "\t return \"\";\n");
+
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+
+                goto next_cmnd;
+                }
+
+            if (toupper(xd[p2px+1])=='T') {  /* HTML command */
+
+                fprintf (Out, "\t /* HTML* */ printf(\"");
+
+                while (xd[xpx]) {
+
+                    if (xd[xpx] == '&' && xd[xpx + 1] == '~') {
+                        xpx += 2;
+                        fprintf (Out, "\");\n");
+                        t2 = 1;
+
+                        for (j=xpx; xd[j]!='~'&&xd[j]!=0; j++);
+
+                        xd[j]=' ';
+
+                        if ((ierr = parse_ ())) goto parse_err;
+                        fprintf (Out, "\t printf(\"%%s\",%s);\n", Extract2(&pd1[sdlim]));
+                        fprintf (Out, "\t printf(\"");
+                        xpx++;
+                        continue;
+                        }
+
+                    if (xd[xpx] == '&' && xd[xpx + 1] == '!') {
+                        xpx += 2;
+                        fprintf (Out, "\\n");
+                        continue;
+                        }
+
+                    if (xd[xpx] == '\"') fprintf (Out, "\\\"");
+                    else if (xd[xpx] == '\'') fprintf (Out, "\\\'");
+                    else if (xd[xpx] == '%') fprintf (Out, "%%%%");
+                    else if (xd[xpx] == '\\') fprintf (Out, "\\\\");
+                    else fprintf (Out, "%c", xd[xpx]);
+                    xpx++;
+                    }
+
+                fprintf (Out, "\");\n");
+                goto next_line;
+                }
+
+            while (1) { /* Hang */
+                t2 = 1;
+                if ((ierr = parse_ ())) goto parse_err;
+                fprintf (Out, "\t _i=atoi( CSTR %s);\n", Extract2(&pd1[sdlim]));
+                fprintf (Out, "\t if (_i>0) sleep(_i);\n");
+
+
+                if (xd[xpx] == ',') {
+                    xpx++;
+                    continue;
+                    }
+
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+
+                goto next_cmnd;
+                }
+
+
+        case ELSE:
+
+            if (tolower(xd[p2px+1])=='x') {
+                exportflag=1;
+                goto exports;
+                }
+
+            if (xd[xpx] == ' ') xpx++;
+            fprintf (Out, "\t if (svPtr->tpx==0) {\n");
+            IF_flg++;
+            goto next_cmnd;
+
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#+* DO
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+        case DO:
+
+            if (toupper(xd[p2px+1])=='A') {  /* SHELL command */
+
+                char tmp[4096];
+                int i;
+
+                for (i=0; xd[p2px]; i++) {
+                    if (xd[p2px]=='\"') {
+                        tmp[i++]='\\';
+                        }
+                    tmp[i]=xd[p2px++];
+                    }
+                tmp[i]=0;
+                INTERPRET;
+                goto next_line;
+                }
+
+            if (tolower(xd[p2px+1]) == 'e') { /* declare */
+                int i=0;
+dcl:
+                if (cvarx>CVARMAX) goto too_many_vars;
+                for (; xd[xpx]!=' '&&xd[xpx]!='\0'&&xd[xpx]!=','; xpx++)
+                    cvars[cvarx].name[i++]=xd[xpx];
+                cvars[cvarx].name[i]='\0';
+                cvarx++;
+                if (xd[xpx]==',') {
+                    i=0;
+                    xpx++;
+                    goto dcl;
+                    }
+                goto next_cmnd;
+                }
+
+
+do_entry:
+
+//#++++++++++++++++++
+//#+ Argumentless DO
+//#++++++++++++++++++
+
+            if (xd[xpx] == '\0' || xd[xpx] == ' ') {
+
+                if (JOB_flg) { // is this really a JOB command?
+                    printf ("*** JOB requires argument\n");
+                    goto arg_list_error;
+                    }
+
+                fprintf (Out, "\t\t tpx%d=svPtr->tpx;\n", ExecName);
+                fprintf (Out, "\t\t svPtr->_Sym++;\n"); //sssssssss
+                fprintf (Out, "\t\t if (setjmp(Efor%dJ)==0) \n",ExecName);
+                fprintf (Out, "\t\t\t goto Do_Block_Entry%d; \n", ExecName);
+                fprintf (Out, "\t\t svPtr->tpx=tpx%d; svPtr->_Sym--;"
+                         "/* return from argumentless do */\n", ExecName, ExecName);
+
+                forx++;
+                DoRet[DoRetX]=ExecName;
+                DoRetX++;
+                if (POST_flg) {
+                    fprintf (Out, "\t } // post conditional\n");
+                    POST_flg = 0;
+                    }
+                goto next_cmnd;
+                }
+
+//#++++++++++++++++++
+//#+ Argumented DO
+//#++++++++++++++++++
+
+another_do:
+
+            fprintf (Out, "\t _ArgCount=0;  //section D1000 \n");
+            Sysout ("\t svPtr->Rargsx=0;\n");
+
+                {
+                int i=xpx,j=0,k=0;
+                char ttt[2048];
+                memmove(ttt,xd,2048);
+
+                j=xpx;
+                while(1) { /* scan through label for non-quoted colon */
+                    /* a non-quoted colon can't exist in the label field */
+                    if (xd[j]=='\0') {
+                        break;
+                        }
+                    if (xd[j]==',' && k==k/2*2) {
+                        break;
+                        }
+                    if (xd[j]==':' && k==k/2*2) {
+                        break;
+                        }
+                    if (xd[j]=='\"') {
+                        if (xd[j+1]=='\"') {
+                            j=j+1;
+                            }
+                        else k++;
+                        }
+                    j++;
+                    }
+
+                if (xd[j]==':' && k==k/2*2) {
+                    xpx=j+1;
+                    t0px=0;
+                    t2=1;
+                    if ((ierr = parse_ ())) goto parse_err;
+                    fprintf(Out, "\t if (atoi( CSTR %s)) { /* postconditional */ \n", Extract2(&pd1[sdlim]));
+                    t0px=0;
+                    t2=0;
+                    xpx=i;
+                    memmove(xd,ttt,2048);
+                    }
+
+                else fprintf (Out,"\t {\n");
+                }
+
+            if (xd[xpx]=='@') { /* indirection in DO argument */
+                t0px = 0;
+                t2 = 1;
+                if ((ierr = parse_ ())) goto parse_err;
+                fprintf (Out, "/* INTERVENTION DO %s */\n",Extract2(&pd1[sdlim]));
+                printf ("*** manual intervention required at line %d\n",lines);
+                fprintf (Out,"\t }\n ");
+                }
+            else if (xd[xpx]=='$' && isalnum(xd[xpx+1])) {
+                t0px = 0;
+                t2 = 1;
+                if ((ierr = parse_ ())) goto parse_err;
+                fprintf (Out,"\t }\n");
+                }
+            else {
+
+                xd[xpx-2]='$';
+                xd[xpx-1]='$';
+                xpx=xpx-2;
+                t2 = 1;
+                if ((ierr = parse_ ())) goto parse_err;
+                t2 = 0;
+                fprintf (Out,"\t }\n ");
+                }
+
+            if (xd[xpx]==':') { /* bypass post-cond, look for non-quoted, non-parend comma */
+                int j,k=0,m=0;
+                xpx++;
+                j=xpx;
+                while(1) {
+                    if (xd[j]=='\0') break;
+                    if (xd[j]==',' && m==0 && k==k/2*2) break;
+                    if (xd[j]==' ' && m==0 && k==k/2*2) break;
+                    if (xd[j]=='(' && k==k/2*2) m++;
+                    if (xd[j]==')' && k==k/2*2) m--;
+                    if (xd[j]=='\"') {
+                        if (xd[j+1]=='\"')  j=j+1;
+                        else k++;
+                        }
+                    j++;
+                    }
+                if (xd[j]==',' && m==0 && k==k/2*2) {
+                    xpx=j+1;
+                    goto another_do;
+                    }
+                xpx=j;
+                }
+
+            if (xd[xpx]==',') {
+                xpx++;
+                goto another_do;
+                }
+
+            if (POST_flg) { /* end of post-cond */
+                fprintf (Out, "\t } /* post conditional */\n");
+                POST_flg = 0;
+                }
+
+            if (JOB_flg) goto job_return;
+
+            goto next_cmnd;
+
+            while (1) {
+                t2 = 1;
+                if ((ierr = parse_ ())) goto parse_err;
+                if (xd[xpx] != ',') {
+                    if (POST_flg) {
+                        fprintf (Out, "\t } /* post conditional */\n");
+                        POST_flg = 0;
+                        }
+                    if (JOB_flg) goto job_return;
+                    goto next_cmnd;
+                    }
+                xpx++;
+                }
+
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#+* KILL
+//#+*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+        case KILL:
+
+            if (xd[xpx] == ' ' || xd[xpx] == 0 || xd[xpx] == '\t') {  // Kill all locals
+                fprintf (Out, "\t _SymFree(0,svPtr);\n");
+                goto k001;
+                }
+
+//#+++++++++++++++++++++++++++++++++++++++
+//# Check for indirection in statement
+//#+++++++++++++++++++++++++++++++++++++++
+
+            at_flg=atTest(xd, pd1, &pd1Last, lines);
+            if (at_flg==-1) goto abrtx;
+
+            if (at_flg) {
+
+                char tmp[1024];
+                int i, j;
+
+                strcpy (tmp, "k ");
+                atCopy (at_flg, tmp);
+
+                INTERPRET
+
+                xpx = at_flg;
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+                goto next_cmnd;
+                }
+
+k003:
+
+            if (xd[xpx] == '^') goto k004;      //* kill globals
+
+            if (xd[xpx] != '(') {               //* Kill specific
+
+                t2=1;
+                if ((ierr = parse_ ())) goto parse_err;
+                if (cvar(&v1d[1])) goto kill_dcl_err;
+                fprintf (Out, "\t sym_(2,(unsigned char *) %s,(unsigned char *) \"\",svPtr); //...* kill specific\n",
+                         Extract1(&pd1[sdlim]));
+                if (xd[xpx] == ',' ) {
+                    xpx++;
+                    goto k003;
+                    }
+                goto k001;
+                }
+
+//#++++++++++++++++++++++++++++++++
+//#+    Kill all locals except...
+//#++++++++++++++++++++++++++++++++
+
+            fprintf (Out, "\t {\n\t struct nmes *p1,*p2;\n");
+            fprintf (Out, "\t svPtr->nstart=NULL;\n");
+            xpx++;
+
+kill2:
+
+            t0px = 1;
+            t2 = 1;
+            retz = KILL;
+            goto set;
+
+kill_return:
+
+            if (strcmp (vd, "atmp") == 0) fprintf (Out, "\t keyfix(atmp);\n");
+
+            else {
+                char tmp[256];
+                strcpy (tmp, "\"");
+                strcat (tmp, vd);
+                strcat (tmp, "\"");
+                strcpy (vd, tmp);
+                }
+
+            fprintf (Out, "\t p1=(struct nmes *) malloc(sizeof (struct nmes));\n");
+            fprintf (Out, "\t if (p1==NULL) ErrorMessage(\"Out of memory\",svPtr->LineNumber);\n");
+            fprintf (Out, "\t p1->name=(char *) malloc(strlen((const char *) %s)+1);\n",vd);
+            fprintf (Out, "\t if (p1->name==NULL) ErrorMessage(\"Out of memory\",svPtr->LineNumber);\n");
+            fprintf (Out, "\t strmove((unsigned char *) p1->name,(unsigned char *) %s);\n", vd);
+            fprintf (Out, "\t p1->next=svPtr->nstart;\n");
+            fprintf (Out, "\t svPtr->nstart=p1;\n");
+            xpx++;
+
+            if (xd[xpx] != ')' && xd[xpx]) {
+                xpx++;
+                goto kill2;
+                }
+
+            fprintf (Out, "\t sym_(5,(unsigned char *) \"\",(unsigned char *) \"\",svPtr); // kill all except\n");
+            fprintf (Out, "\t }\n");
+            goto k002;
+
+//#++++++++++++++++++++++++++++++++++++++++++++
+//# Kill globals
+//#++++++++++++++++++++++++++++++++++++++++++++
+
+k004:
+
+            while (1) {
+                t0px = 1;
+                if ((ierr = parse_ ())) goto parse_err;
+
+                fprintf (Out, "\t strmove((unsigned char *) gtmp,(unsigned char *) \"\");\n");
+
+                    {
+                    char t[1024];
+                    int i, j = 0;
+
+                    for (i = 1; v1d[i] != 0; i++) {
+                        if (v1d[i] >= 32 && v1d[i] <= 127) t[j++] = v1d[i];
+                        else break;
+                        }
+
+                    t[j++] = '\x01';
+                    t[j] = 0;
+                    fprintf (Out, "\t strcat((char *) gtmp,(char *) \"%s\");\n", t);
+
+                    if (v1d[i] != 0) {
+                        i++;
+                        while (1) {
+                            j = 0;
+                            while (v1d[i] <= 127 && v1d[i] >= 32) t[j++] = v1d[i++];
+                            t[j] = 0;
+                            fprintf (Out, "\t strcat((char *) gtmp,(char *) %s);\n", Extract2(t));
+                            j = 0;
+                            t[j++] = '\x01';
+                            t[j] = 0;
+                            fprintf (Out, "\t strcat((char *) gtmp,(char *) \"%s\");\n", t);
+                            if (v1d[++i] != 0) continue;
+                            else break;
+                            }
+                        }
+                    }
+
+                fprintf (Out, "\t {\tunsigned char tmp14[STR_MAX],tmp15[STR_MAX];\n\t\tkeyfix(gtmp);\n");
+                fprintf (Out, "\t\t _k=strlen((const char *) gtmp);\n");	/* original length */
+                fprintf (Out, "\t\t strmove((unsigned char *) tmp14,(unsigned char *) gtmp);\n");
+                fprintf (Out, "\t\t Mglobal(GKILL,gtmp,tmp15,svPtr);\n");	/* kill first */
+                fprintf (Out, "\t\t while(1) {\n");
+                fprintf (Out, "\t\t _j=Mglobal(XNEXT,gtmp,tmp15,svPtr);\n");	/* kill others like it */
+                fprintf (Out, "\t\t if (_j&&strncmp((const char *)tmp14,(const char *)gtmp,_k)==0) {\n");
+                fprintf (Out, "\t\t\t Mglobal(GKILL,gtmp,tmp15,svPtr);\n");
+                fprintf (Out, "\t\t\t continue;\n");
+                fprintf (Out, "\t\t\t }\n");
+                fprintf (Out, "\t\tbreak;\n\t\t }\n\t }\n");
+
+k002:
+
+                if (xd[++xpx] == ',') {
+                    xpx++;
+                    goto k003;
+                    }
+
+k001:
+
+                if (POST_flg) {
+                    fprintf (Out, "\t } /* post conditional */\n");
+                    POST_flg = 0;
+                    }
+                goto next_cmnd;
+                }
+
+        case CLOSE:
+
+            p2px++;
+            if (xd[p2px] <= 90) xd[p2px] += 32;	//*lower case
+            if (xd[p2px] == 'o') goto cntnue; //* continue
+            if (xd[p2px] == 'a') goto ctch; //* catch
+
+            while (1) {
+                t2 = 1;
+                if ((ierr = parse_ ())) goto parse_err;
+                fprintf (Out, "\t _i=atoi( CSTR %s);\n", Extract2(&pd1[sdlim]));
+                fprintf(Out, "\t if (svPtr->in_file[_i]==NULL&&svPtr->out_file[_i]==NULL) ");
+                fprintf (Out, "ErrorMessage(\"Attempt to close unopened file\",svPtr->LineNumber);\n");
+                fprintf (Out,
+                         "\t if (svPtr->in_file[_i]!=NULL) { fclose(svPtr->in_file[_i]); svPtr->in_file[_i]=NULL; }\n");
+                fprintf (Out,
+                         "\t else { fclose(svPtr->out_file[_i]); svPtr->out_file[_i]=NULL; }\n");
+
+                if (xd[xpx] != ',') {
+                    if (POST_flg) {
+                        fprintf (Out, "\t } /* post conditional */\n");
+                        POST_flg = 0;
+                        }
+                    goto next_cmnd;
+                    }
+                xpx++;
+                }
+
+        case USE:
+
+            t2 = 1;
+            if ((ierr = parse_ ()))
+                goto parse_err;
+            fprintf (Out, "\t svPtr->io=atoi( CSTR %s);\n", Extract2(&pd1[sdlim]));
+
+            if (POST_flg) {
+                fprintf (Out, "\t } /* post conditional */\n");
+                POST_flg = 0;
+                }
+
+            goto next_cmnd;
+
+            /****************************************************************************
+            *******
+            ******* remote block to proces lhs type references
+            *******
+            ****************************************************************************/
+
+lhsref:
+
+            /* ??? this section is dead code it appears */
+
+            if (vd[1] == '^') {
+                strcpy (v1d, &vd[1]);
+                strcpy (bd, &pd1[sdlim]);
+                fprintf (Out, "\t _f=Mglobal*(STORE,%s,%s,svPtr);\n", v1d, bd);
+                }
+
+            else if (vd[1] == '$' && (vd[2] == 'p' || vd[2] == 'P')) { // $Piece
+                strcpy (tmp3, &pd1[sdlim]);
+                strcpy (&v1d[1], &vd[1]);
+                setpiece = 1;
+                /* fcn();  */
+                setpiece = 0;
+                for (i = 1; bd[i] != 0 && bd[i] != 1; i++);
+                if (bd[i] == 0) goto ref_err;
+                sdlim = pd1len + 2;
+                l = 1;
+                j = sdlim;
+                while (l < i) pd1[j++] = bd[l++];
+                pd1[j] = 0;
+                strcat (&pd1[sdlim], tmp3);
+                strcat (&pd1[sdlim], &bd[i + 1]);
+                strcpy (&vd[1], setname);
+                goto lhsref;
+                }
+
+            else {  // Ordinary variable
+                strcpy (vd, &vd[1]);
+
+                    {
+                    int i, k, j;	// Process array reference
+                    char tmp[1024];
+
+                    if (v1d[1] == '^') goto no_array1;
+
+                    for (i = 0; vd[i] != 0; i++)
+                        if (vd[i] > 127) goto has_array1;
+
+                    goto no_array1;
+
+has_array1:
+
+                    fprintf (Out, "// Expand LHS Array Reference\n{\t unsigned char tmp[STR_MAX];\n\t int i;\n");
+
+                    for (i = 0; vd[i] != 0; i++)
+
+                        if (vd[i] == 206) {		//Open
+                            vd[i] = 0;
+                            fprintf (Out, "\t strmove((unsigned char *) tmp,(unsigned char *) \"%s\");\t// array name\n", vd);
+                            fprintf (Out, "\t i=strlen((const char *) tmp);\n");
+                            fprintf (Out, "\t tmp[i]=206;\t// coded open paren\n");
+                            fprintf (Out, "\t tmp[i+1]=0;\n");
+                            vd[i] = 206;
+                            for (j = i + 1; vd[j] != 0; j++)
+                                if (vd[j] == 207 || vd[j] == 208)
+                                    break;
+                            k = vd[j];
+                            vd[j] = 0;
+                            fprintf (Out, "\t strcat((char *) tmp,(char *) %s);\t// index\n", &vd[i + 1]);
+                            fprintf (Out, "\t i=strlen((const char *) tmp);\n");
+                            fprintf (Out, "\t tmp[i]=%d; /* coded comma or close paren */\n",k);
+                            fprintf (Out, "\t tmp[i+1]=0;\n");
+                            vd[j] = k;
+                            i = j - 1;
+                            }
+
+                        else if (vd[i] == 207) {		// Close
+                            fprintf (Out, "\t strmove((unsigned char *) atmp,(unsigned char *) tmp); /* preserve expanded array reference */\n");
+                            fprintf (Out, "\t }\n");
+                            strcpy (vd, "atmp");
+                            break;
+                            }
+
+                        else if (vd[i] == 208) {		/* comma */
+
+                            for (j = i + 1; vd[j] != 0; j++)
+                                if (vd[j] == 207 || vd[j] == 208)
+                                    break;
+                            k = vd[j];
+                            vd[j] = 0;
+                            fprintf (Out, "\t strcat((char *) tmp,(char *) %s);\n", &vd[i + 1]);
+                            fprintf (Out, "\t i=strlen((const char *) tmp);\n");
+                            fprintf (Out, "\t tmp[i]=%d; /* coded comma or close paren */\n", k);
+                            fprintf (Out, "\t tmp[i]=0;\n");
+                            vd[j] = k;
+                            i = j - 1;
+                            }
+                    }
+
+no_array1:
+
+                fprintf (Out, "\t sym_(0,(unsigned char *) \"%s\",(unsigned char *) %s,svPtr); /* Store value */\n", vd,&pd1[sdlim]);
+                }
+
+            goto cont_read;
+
+        /****************************************************************************
+        *******
+        ******* remote block to process DO and GOTO arguments.
+        *******
+        ****************************************************************************/
+
+        case GOTO:
+
+            if (xd[xpx] == 0) goto lbl_error;
+
+next_goto:
+
+            i = 0;
+
+            while (xd[xpx]) {
+                if (xd[xpx] == ',' || xd[xpx] == ' ' || xd[xpx] == 0 ||
+                        xd[xpx] == '+' || xd[xpx] == ':') break;
+                dosave[i++] = xd[xpx++];
+                }
+
+            if (xd[xpx] == ':') { // post conditionals
+                xpx++;
+                t0px=0;
+                t2=1;
+                if ((ierr = parse_ ())) goto parse_err;
+                fprintf(Out, "\t if (atoi((char *) %s)) /* postconditional */ ", Extract2(&pd1[sdlim]));
+                t0px=0;
+                t2=0;
+                }
+
+            dosave[i] = 0;
+
+            for (i=0; dosave[i]!=0 && dosave[i]!='^' && dosave[i]!='+'; i++);
+
+            if (dosave[i]=='+' || dosave[i]=='(') goto lbl_error;
+
+            if (dosave[i]==0) { /* simple goto */
+                if (isdigit(dosave[0])) fprintf (Out, "\t goto _%s;\n", dosave);
+                else fprintf (Out, "\tgoto %s;\n", dosave);
+                goto gexit;
+                }
+
+            if (dosave[0]!='^') {   /* label appears first in a ^ ref */
+                dosave[i]=0;
+                strcpy(tmp2,dosave);
+                strcpy(&dosave[1],&dosave[i+1]); /* copy fcn name backwards */
+                dosave[0]='^';
+                }
+            else strcpy(tmp2,"");
+
+            fprintf(Out,
+                    "\t_jj=Interpret(\"x \\\"goto ^%s\\\"\",svPtr);\n",&dosave[1]);
+
+//      fprintf(Out, "\t %s(svPtr,\"%s\"); /* branch to function */\n",
+//            &dosave[1],tmp2);
+
+            Sysout("\t goto _epilogue; /* if fcn returns, this is end program */\n");
+
+gexit:
+
+            if (xd[xpx]==',') {
+                xpx++;
+                goto next_goto;
+                }
+
+            if (POST_flg) {
+                fprintf (Out, "\t } /* post conditional */\n");
+                POST_flg = 0;
+                }
+
+            goto next_cmnd;
+
+            /****************************************************************************
+            *******
+            ******* error
+            *******
+            ****************************************************************************/
+
+kill_dcl_err:
+
+            ernbr=99;
+            printf("\n*** Attempt to Kill declared variable\n");
+            goto abrt1;
+
+parse_err:
+
+            ernbr = ierr;
+            printf ("\n*** %d Expression error\n", ernbr);
+            if (ernbr == 9001) printf("*** Invalid global array reference");
+            if (ernbr == 9002) printf("*** Invalid routine reference");
+            if (ernbr == 9003) printf("*** Wrong number of args to $extract()");
+            if (ernbr == 12) printf("Invalid operator: %c",ErrChar);
+            goto abrt1;
+
+nobrk_err:
+            ernbr=99;
+            printf ("\n*** Break not permitted here");
+            goto abrt1;
+
+indirect_err:
+
+            ernbr = 72;
+            printf ("\n*** Indirection not permitted here");
+            goto abrt1;
+
+lbl_error:
+
+            ernbr = 8;
+            printf ("\n*** Label or file not found");
+            goto abrt1;
+
+do_error:
+
+            ernbr = 8;
+            printf ("\n*** Post-conditional not permitted here");
+            goto abrt1;
+
+lab_err:
+
+            ernbr=22;
+            printf("\n*** Labels must begin with and alphabetic character");
+            goto abrt1;
+
+bad_lock:
+
+            ernbr=99;
+            printf("\n*** Lock error");
+            goto abrt1;
+
+quit_err:
+            ernbr=99;
+            printf("\n*** Break not possible");
+            goto abrt1;
+
+Ext_file:
+
+            ernbr = 8;
+            printf ("\n*** Attempt to branch to external file");
+            goto abrt1;
+
+go_err:
+
+            ernbr = 99;
+            printf ("\n*** Attempt to branch to function");
+            goto abrt1;
+
+        default:
+command:
+
+            ernbr = 13;
+            printf ("\n*** 13 Command Error");
+            goto abrt1;
+
+arg_list_error:
+
+            ernbr = 14;
+            printf ("\n*** 14 Argument list error");
+            goto abrt1;
+
+too_many_vars:
+
+            ernbr=91;
+            printf ("\n*** 91 Too many C variables");
+            goto abrt1;
+
+Missing_Zmain:
+
+            ernbr=92;
+            printf ("\n*** 92 Missing zmain");
+            goto abrt1;
+
+
+nogblpermitted:
+
+            ernbr=92;
+            printf ("\n*** 92 Global not permitted");
+            goto abrt1;
+
+ref_err:
+
+            ernbr = 18;
+            printf ("\n*** 18 Reference error");
+            goto abrt1;
+
+too_lhs:
+
+            ernbr=9033;
+            printf ("\n*** 9033 Too many variables in LHS");
+            goto abrt1;
+
+mem_err:
+
+            ernbr = 19;
+            printf ("\n*** 19 Out of memory");
+            goto abrt1;
+
+catch_error:
+            ernbr=122;
+            printf("\n*** 122 Missing catch argument");
+            goto abrt1;
+
+catch_unknown:
+            ernbr=123;
+            printf("\n*** 123 Unknown exception in catch");
+            goto abrt1;
+
+try_unknown:
+            ernbr=124;
+            printf("\n*** 124 Unknown option in try");
+            goto abrt1;
+
+abrt1:
+
+            printf (" in or near line %d\n", lines);
+            printf ("*** %s\n", &pd1[pd1Last]);
+            ExitCode = ernbr;
+//      goto abrtx;
+            goto next_line;  // remove the above line to get full err msgs
+
+        }				/* command switch */
+
+    }
+
+void fcninit (char *output_file) {
+
+    Sysout ( "//#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+    Sysout ( "//#+ Intermediate temporary variables used during execution of string expressions\n");
+    Sysout ( "//#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+    Sysout_skip;
+
+    Sysout ( "char *_ftmp = new char[STR_MAX]; /* intermediate temp */\n");
+    linepad2("Temporary variables");
+    if (strlen(FunctionName)==0) fprintf(Out,"INCLUDE Main_.h\n");
+    else fprintf(Out,"INCLUDE %s_.h\n",FunctionName);
+
+    Sysout ( "unsigned char *_dummy = new unsigned char[STR_MAX]; /* temporary variable */\n");
+    fprintf (Out, "unsigned char *atmp =new unsigned char[STR_MAX]; /* temporary variable */\n");
+    fprintf (Out, "unsigned char *xgtmp = new unsigned char [STR_MAX]; /* temporary variable */\n");
+    fprintf (Out, "unsigned char *gtmpL = new unsigned char[STR_MAX]; /* temporary variable */\n");
+    fprintf (Out, "unsigned char *tmp = new unsigned char[STR_MAX]; /* temporary variable */\n");
+    fprintf (Out, "unsigned char *gtmp = new unsigned char [2*STR_MAX]; /* temporary variable */\n");
+
+    fprintf (Out,"int %s_label_lookup(char *); /* resolution of labels */\n",FunctionName);
+    fprintf (Out,"char * %s_text_function(int);\n",FunctionName);
+
+    fprintf (Out, "static unsigned char _ReturnVal[STR_MAX]; /* function returns */\n");
+    fprintf (Out, "int _ArgCount=0; /* Nbr of args to extrinsic */\n");
+    fprintf (Out, "long _i,_jj,_j,_k,_new;\n");
+    fprintf (Out, "int _SymPush=0,f=0;\n");
+    fprintf (Out, "int g=0;\n");
+    Sysout ("jmp_buf _doStack[128]; /* <do> return stack mechanism */\n");
+    Sysout ("short   _doStackN[128]={0}; /* <do> return stack mechanism */\n");
+    Sysout ("static int     _doStx=0; /* <do> return stack mechanism */\n");
+    Sysout ("char _Refs[10][32];\n");
+    Sysout ("int _Refsx=0;\n");
+
+    Sysout ("if (svPtr == NULL) ");
+    Sysout ("svPtr = AllocSV();\n");
+    Sysout ("_SymPush=0; // zap pushed tables  \n");
+    fprintf (Out, "svPtr->in_file[5]=stdin; /* console default */\n");
+    fprintf (Out, "svPtr->out_file[5]=stdout; /* console default */\n");
+    fprintf (Out, "strcpy(svPtr->UDAT,\"data.dat\");\n");
+    fprintf (Out, "strcpy(svPtr->UKEY,\"key.dat\");\n");
+
+    return;
+    }
+
+void epi (short ExecName) {
+    int i;
+    fprintf (Out, "\n");
+    fprintf (Out,
+             "//=================================================================================\n");
+    linepad (fprintf (Out, "_epilogue: tmp0[0]=0; tmp1[0]=0;"), " Function Epilogue");
+    fprintf (Out, "\t Mltoa(getpid(),atmp);\n");
+    fprintf (Out, "\t if (svPtr->LockDone) cleanLocks((char *) atmp);\n");
+    linepad (fprintf (Out, "\t Mglobal(CLOSE,tmp0,tmp1,svPtr);"), "Close Globals");
+
+
+
+    fprintf( Out, " } // end of try block\n");
+    fprintf( Out, "\t catch(...) {\n");
+    fprintf( Out, "\t\t cout << \"Uncaught error in or near line \" << svPtr->LineNumber << endl;\n");
+    linepad (fprintf (Out, "\t Mglobal(CLOSE,tmp0,tmp1,svPtr);"), "Close Globals");
+    fprintf( Out, "\t\t }\n");
+
+    if (FCN_flg) fprintf(Out,"\t return \"\";} /* Terminate */\n");
+    else {
+        linepad (fprintf (Out, "\t return EXIT_SUCCESS; }"), "Terminate");
+        }
+
+    fprintf (Out,
+             "//=================================================================================\n\n");
+
+    if (LabelsStart!=NULL) {
+        int t=0,l=0;
+
+// ?????
+        fprintf (Out, "\n\nint %s_label_lookup(char *label) {\n\n",FunctionName);
+
+        fprintf (Out, "static struct lab {\n\t const char *text;\n\t int offset;\n\t }\n\t L[] = {\n");
+        p1=LabelsStart;
+        fprintf(Out, "\t\t\"%s\", %d",p1->name, p1->lnbr);
+        p1=p1->next;
+        l++;
+        while (p1!=NULL) {
+            l++;
+            fprintf(Out, ",\n\t\t\"%s\", %d",p1->name, p1->lnbr);
+            p1=p1->next;
+            }
+        fprintf(Out, "\n\t\t };\n\n");
+
+        fprintf(Out, "int lx=-1,i,Lx=%d;\n\n",l);
+
+        fprintf(Out,"\t for (i=0; i<Lx; i++) {\n");
+        fprintf(Out,"\t\t if (strcmp((const char *) L[i].text,(const char *) label)==0) {\n");
+        fprintf(Out,"\t\t\t lx=L[i].offset;\n");
+        fprintf(Out,"\t\t\t break;\n");
+        fprintf(Out,"\t\t\t }\n");
+        fprintf(Out,"\t\t }\n");
+        fprintf(Out,"\t return lx;\n");
+        fprintf(Out," }\n");
+        p1=LabelsStart;   //* clear label table
+        while (p1!=NULL) {
+            p3=p1->next;
+            free(p1);
+            p1=p3;
+            }
+        LabelsStart=NULL;
+        }
+
+    else {
+        fprintf (Out, "\n\nint %s_label_lookup(char *label) { return -1; }\n",FunctionName);
+        }
+
+    if (TextStart!=NULL) {
+        int t=0,l=0;
+        fprintf (Out, "\n\nconst char * %s_text_function(int disp) {\n\n",FunctionName);
+
+        fprintf (Out, "static struct txt {\n\t const char *text;\n\t int offset;\n\t}\n\t T[] = {\n");
+        p1=TextStart;
+        fprintf(Out, "\t\t \"%s\", %d",p1->name, p1->lnbr);
+        p1=p1->next;
+        t++;
+        while (p1!=NULL) {
+            t++;
+            fprintf(Out, ",\n\t\t \"%s\", %d",p1->name, p1->lnbr);
+            p1=p1->next;
+            }
+        fprintf(Out, "\n\t\t };\n\n");
+
+        fprintf(Out, "int tx,i,Tx=%d;\n\n",t);
+
+        fprintf(Out,"\t for (i=0; i<Tx; i++)\n");
+        fprintf(Out,"\t\t if (disp==T[i].offset) return T[i].text;\n");
+        fprintf(Out,"\t return NULL;\n");
+        fprintf(Out,"}\n");
+        p1=TextStart;
+        while (p1!=NULL) {
+            p3=p1->next;
+            free (p1);
+            p1=p3;
+            }
+        TextStart=NULL;
+        }
+
+    else {
+        fprintf (Out, "char * %s_text_function(int disp) { return NULL; }\n\n",FunctionName);
+        }
+
+        {
+        int i;
+        FILE *hfile;
+        char fn[256];
+        if (strlen(FunctionName)==0) {
+            hfile = fopen("Main_.h","w");
+            }
+        else {
+            strcpy(fn,FunctionName);
+            strcat(fn,"_.h");
+            hfile = fopen(fn,"w");
+            if (hfile==NULL) abort(); // ?????????????
+            }
+        for (i=1; i<=forxmax; i++)
+            fprintf(hfile,
+                    "char for%d_incr[FORPARM],for%d_lim[FORPARM],for%d_init[FORPARM];\n"
+                    "int for%dF; "
+                    "int for%dT; "
+                    "long for%d; "
+                    "double for%dD;\n",
+                    i,i,i,i,i,i,i,i);
+        for (i=0; i<=forx; i++)
+            fprintf (hfile, "jmp_buf for%dJ;\n",i);
+        for (i=0; i<ArgMax; i++)
+            fprintf(hfile, "char *__Arg%d = new char[STR_MAX];\n", i);
+        for (i=0; i<=ExecName; i++) {
+            fprintf (hfile, "jmp_buf Efor%dJ;\n",i);
+            fprintf(hfile, "int tpx%d;\n",i);
+            }
+        for (i=0; i<MaxTmp; i++) fprintf(hfile,"unsigned char *tmp%d = new unsigned char[STR_MAX];\n",i); // ????
+        for (i=0; i<cvarx; i++) fprintf(hfile,"char %s[STR_MAX];\n",cvars[i].name);
+        cvarx=0;
+        IF_flg_max=forxmax=0;
+        ArgMax = 0;
+        fclose(hfile);
+        }
+
+    strcpy(FunctionName,"");
+    IF_flg=forxmax=forx=0;
+    for (i=0; i<FBMAX; i++) ForBlocks[i]=-1;
+    MaxTmp=2;
+    return;
+    }
+
+int LevCheck(short ExecName, short DoRetX, short DoRet[]) {
+    int i;
+    for (i=0; i<DoRetX; i++) if (DoRet[i]==ExecName) return 0;
+    return 1;
+    }
+
+int doty(int j, short *ExecLevel, short *ExecName, short DoRet[], short DoRetX, short *pd1Last,
+         short pd1cur, short ExecStack[], short *ExecX, short ExecSym[]) {
+
+    if (*ExecLevel == j-1) {	// indenting
+        if (LevCheck(*ExecName,DoRetX,DoRet)) {
+            printf("\n*** Indentation without preceeding Do\n");
+            *pd1Last=pd1cur;
+            return 99;
+            }
+        fprintf (Out, "\t goto Do_Block_Bypass%d; /* by pass indented group */\n", *ExecName);
+        fprintf (Out, "Do_Block_Entry%d: ; ", *ExecName);
+        ExecStack[(*ExecX)++] = (*ExecName)++;
+        fprintf (Out, "do { /* dotted indent entry */\n");
+        *ExecLevel = j;
+        }
+
+    else if (*ExecLevel > j) { // un-indenting
+        for (; *ExecLevel > j; (*ExecLevel)--) {
+            fprintf (Out, "\t } while (0); /* dotted un-indent %d */\n", *ExecX - 1);
+            if (ExecSym[*ExecX]) {
+                fprintf(Out,"\t _SymFree(1,svPtr); /* Remove symbol table layer */\n");
+                ExecSym[*ExecX]=0;
+                }
+            // fprintf (Out, "\t goto Do_Block_Return%d; /* return */\n", ExecStack[--(*ExecX)]);
+            fprintf (Out, "\t longjmp(Efor%dJ,99); /* return */\n", ExecStack[--(*ExecX)]);
+// ?????? aaaaaaaaaa
+            fprintf (Out, "Do_Block_Bypass%d:\t svPtr->_Sym--;  \n",
+                     ExecStack[*ExecX],ExecStack[*ExecX]);
+            }
+        *ExecLevel = j;
+        }
+    return 0;
+    }
+
+
+void LocalArray (unsigned char vd[], short *Set_flg) {
+
+//#+ Process array reference
+
+    int i, k, j;
+    char tmp[1024];
+
+    if (v1d[1] == '^' || v1d[1] == '$') return;
+
+    for (i = 0; vd[i] != 0; i++) if (vd[i] > 127) goto has_array;
+
+    return;     //* Not an array reference - no open paren
+
+//#+ Process LHS style local array reference
+
+has_array:
+
+    fprintf (Out, "\t {\t char tmp[STR_MAX];  // expand lhs array reference\n\t\t int i;\n");
+
+    for (i = 0; vd[i] != 0; i++)
+        if (vd[i] == 206) { //Open
+            vd[i] = 0;
+            fprintf (Out, "\t\t strmove((unsigned char *) tmp,(unsigned char *) \"%s\");\t// array name\n", vd);
+            fprintf (Out, "\t\t i=strlen(tmp);\n");
+            fprintf (Out, "\t\t tmp[i]=206;\t// coded open paren\n");
+            fprintf (Out, "\t\t tmp[i+1]=0;\n");
+            vd[i] = 206;
+
+            for (j = i + 1; vd[j] != 0; j++)
+                if (vd[j] == 207 || vd[j] == 208) break;
+
+            k = vd[j];
+            vd[j] = 0;
+            if (strncmp(&vd[i+1],"#G#",3)==0 || strncmp(&vd[i+1],"#S#",3)==0) {
+                fprintf (Out,"\t");
+                fprintf (Out, "\t\t strcat((char *) tmp,(char *) %s);\t// index\n", Extract2(&vd[i + 1]));
+                }
+            else fprintf (Out, "\t\t strcat((char *) tmp,(char *) %s);\t// index\n", &vd[i + 1]);
+            fprintf (Out, "\t\t i=strlen(tmp);\n");
+            fprintf (Out, "\t\t tmp[i]=%d;\t// coded comma or close paren\n", k);
+            fprintf (Out, "\t\t tmp[i+1]=0;\n");
+            vd[j] = k;
+            i = j - 1;
+            }
+
+        else if (vd[i] == 207) {			// Close
+            fprintf (Out, "\t\t strmove((unsigned char *) atmp,(unsigned char *) tmp); // preserve expanded array reference\n");
+            *Set_flg = 1;
+            fprintf (Out, "\t\t }\n");
+            strcpy (vd, "atmp");
+            break;
+            }
+
+        else if (vd[i] == 208) {			/* comma */
+            for (j = i + 1; vd[j] != 0; j++)
+                if (vd[j] == 207 || vd[j] == 208) break;
+            k = vd[j];
+            vd[j] = 0;
+            if (strncmp(&vd[i+1],"#G#",3)==0 || strncmp(&vd[i+1],"#S#",3)==0) {
+                fprintf (Out,"\t");
+                fprintf (Out, "\t\t strcat((char *) tmp,(char *) %s);\t// index\n", Extract2(&vd[i + 1]));
+                }
+            else fprintf (Out, "\t\t strcat((char *) tmp,(char *) %s);\t// index\n", &vd[i + 1]);
+            fprintf (Out, "\t\t i=strlen((const char *) tmp);\n");
+            fprintf (Out, "\t\t tmp[i]=%d; // coded comma or close paren\n", k);
+            fprintf (Out, "\t\t tmp[i+1]=0;\n");
+            vd[j] = k;
+            i = j - 1;
+            }
+    }
+
+
+void GlobalArray(unsigned char v1d[], short *GBL_flg, unsigned char *vd) {
+    /* process LHS style global array refs */
+
+    unsigned char t[1024], h[6];
+    int i, j = 0;
+
+    if (v1d[1] == '^') {			// Process LHS global array reference
+
+        for (i = 1; v1d[i] != 0; i++) {
+            if (v1d[i] >= 32 && v1d[i] <= 127)
+                t[j++] = v1d[i];
+            else break;
+            }
+
+        *GBL_flg = 1;
+        sprintf(vd,"tmp%d",iiitmp);
+        if (v1d[i]=='\0') h[2]=206;
+        else h[2]=v1d[i];
+        sprintf (h, "%2x", h[2]);
+        t[j++] = '\\';
+        t[j++] = 'x';
+        t[j++] = h[0];
+        t[j++] = h[1];
+        t[j] = 0;
+        fprintf (Out, "\t strmove((unsigned char *) tmp%d,(unsigned char *) \"%s\"); //m3701\n", iiitmp,t);
+
+        if (v1d[i]=='\0') {
+            iiitmp++;
+            memcheck(iiitmp);
+            return;
+            }
+        i++;
+
+        while (1) {
+            j = 0;
+            while (v1d[i] <= 127 && v1d[i] >= 32) t[j++] = v1d[i++];
+            t[j] = 0;
+            if (strlen(t)) {
+                if (strncmp(t,"#G#",3)==0 || strncmp(t,"#S#",3)==0)
+                    fprintf (Out, "\t strcat((char *) tmp%d,(char *) %s); // a\n", iiitmp,Extract2(t));
+//                              fprintf (Out, "\t strcatx( tmp%d, USTR %s); // a\n", iiitmp,Extract2(t));
+                else fprintf (Out, "\t strcat((char *) tmp%d,(char *) %s); // b\n", iiitmp,t);
+//                        else fprintf (Out, "\t strcatx(tmp%d, USTR %s); // b\n", iiitmp,t);
+                }
+            j = 0;
+            if (v1d[i]==0) v1d[i]=207;
+            sprintf (h, "%2x", v1d[i]);
+            t[j++] = '\\';
+            t[j++] = 'x';
+            t[j++] = h[0];
+            t[j++] = h[1];
+            t[j] = 0;
+            fprintf (Out, "\t strcat((char *) tmp%d,(char *) \"%s\");\n", iiitmp,t);
+            if (v1d[++i] != 0) continue;
+            else break;
+            }
+        }
+
+    else *GBL_flg = 0;
+    iiitmp++;
+    memcheck(iiitmp);
+    return;
+    }
+
+
+int atTest(unsigned char xd[], unsigned char pd1[], short *pd1Last,
+           short lines) {
+
+    int k, at_flg = 0;
+
+    for (k = xpx; xd[k] != 0 && xd[k] != ' '; k++) {
+
+        if (xd[k] == '@') at_flg = 1;
+
+        if (xd[k] == '"') {
+
+            while (k++) {
+
+                if (xd[k] == 0) {
+                    printf ("*** Imbalanced quotes\n");
+                    printf ("*** In or near line %d\n", lines);
+                    printf ("*** %s\n", &pd1[*pd1Last]);
+                    return -1;
+                    }
+
+                if (xd[k] == '\"' && xd[k + 1] == '\"') {
+                    k++;
+                    continue;
+                    }
+
+                if (xd[k] == '\"') break;
+
+                }
+            }
+        }
+
+    if (at_flg==1) return k;
+    else return 0;
+    }
+
+
+void atCopy (int at_flg, unsigned char tmp[]) {
+
+    int i, j;
+
+    for (i = xpx, j = 2; xd[i] != 0 && i < at_flg; i++) {
+
+        if (xd[i] != '\"' && xd[i] != '\\') tmp[j++] = xd[i];
+
+        else if (xd[i] == '\"') {
+            tmp[j++] = '\\';
+            tmp[j++] = '\"';
+            }
+
+        else if (xd[i] == '\\') {
+            tmp[j++] = '\\';
+            tmp[j++] = '\\';
+            }
+        }
+    tmp[j] = 0;
+    }
+
+
+void EP(int flg, short ExecName) { //* subfucntion entry point router
+
+    if (flg) {
+        fprintf(Out, "\t goto _epilogue;\n");
+        fprintf(Out,"_eps:\t if (strlen((const char *) offset)==0) goto _fcn;\n");
+
+        if (LabelsStart!=NULL) {
+            p1=LabelsStart;
+            while (p1!=NULL) {
+                fprintf(Out,"\t if (strcmp((const char *) offset,(const char *) \"%s\")==0) goto %s;\n",
+                        p1->name,p1->name);
+                p1=p1->next;
+                }
+            }
+        fprintf(Out, "\t ErrorMessage(\"Error - entry point label not found\", svPtr->LineNumber);\n");
+        }
+
+    epi (ExecName);           //* terminate prev function
+    MAIN_flg = 0;     //* not in main function
+    }
+

@@ -1,0 +1,35 @@
+#/bin/bash
+
+if [ "$OSTYPE" == "cygwin" ]; then
+	echo "This script is not appropriate for Cygwin"
+	exit
+	fi
+
+if [ `whoami` != "root" ]; then
+	echo
+	echo "****************************************"
+        echo "**** You must be root to run this script"
+	echo "****************************************"
+	echo
+        exit
+        fi
+
+	apt-get -q -y install autoconf 
+	apt-get -q -y install astyle
+
+	apt-get -q -y install libreadline-dev
+
+	apt-get -q -y install libpcre3 
+	apt-get -q -y install libpcre3-dev 
+
+	apt-get -q -y install g++ 
+	apt-get -q -y install gcc-doc 
+
+        apt-get -q -y install libgmp-dev
+        apt-get -q -y install libmpfr-dev
+
+echo "You now need to execute one of the Build scripts:"
+
+echo "	BuildMumpsWithGlobalsInSharedNative.script"
+echo "	BuildMumpsWithGlobalsInSingleUserNative.script"
+echo "	BuildMumpsWithNativeClientServer.script"

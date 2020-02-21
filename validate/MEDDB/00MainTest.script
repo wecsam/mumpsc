@@ -1,0 +1,18 @@
+#!/bin/bash
+
+echo "Init mumps Tabls"
+InitMumpsTable.mps
+echo "Load mumps Table"
+LoadSingleTblDB.script
+echo "Query mumps Table"
+mysql -u mumps -D mumps -t < MysqlQuerySnglTab.sql
+echo "Load Multiple Tables"
+LoadMultiTblDB.script
+echo "Show Tablles"
+showtabs.script
+echo "Query Multiple Tables"
+mysql -u mumps -D mumps -t < MysqlQueryMultiTbls.sql
+exho "Creat SQL Table and Mumps View of It"
+mysql -u mumps -D mumps -t < CrtMpsTblView.sql
+echo "Mumps Access to View"
+CrtMpsTblViewMpsUse.mps  

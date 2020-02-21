@@ -1,0 +1,117 @@
+.TH BMGSUBS 3L "16 May 1986"
+.SH NAME
+(bmgsubs) bmg_setup, bmg_search, bmg_fsearch \- Boyer-Moore-Gosper string search routines
+.SH SYNOPSIS
+bmg_setup(search_string, case_fold_flag)
+.br
+char *search_string;
+.br
+int case_fold_flag;
+.sp
+bmg_fsearch(file_des, action_func)
+.br
+int file_des;
+.br
+int (*action_func)();
+.sp
+bmg_search(buffer_base, buffer_length, action_func)
+.br
+char *buffer_base;
+.br
+int buffer_length;
+.br
+int (*action_func)();
+.SH DESCRIPTION
+These routines perform fast searches for strings, using the
+Boyer-Moore-Gosper algorithm.  No meta-characters
+(such as `*' or `.')
+are interpreted, and the search string cannot contain newlines.
+.PP
+.I Bmg_setup
+must be called as the first step in performing a search.  The
+.I search_string
+parameter is the string to be searched for.
+.I Case_fold_flag
+should be false (zero) if characters should match exactly, and
+true (non-zero) if case should be ignored when checking for
+matches.
+.PP
+Once a search string has been specified using
+.IR bmg_setup ,
+one or more searches for that string may be performed.
+.PP
+.I Bmg_fsearch
+searches a file, open for reading on file descriptor
+.I file_des
+(this is
+.I not
+a
+.I stdio
+file.)
+For each line that contains the search string,
+.I bmg_fsearch
+will call the
+.I action_func
+function specified by the caller as
+action_func(matching_line, byte_offset).
+The
+.I matching_line
+parameter is a (char *) pointer to a temporary copy of the line;
+.I byte_offset
+is the offset from the beginning of the file to the first occurence
+of the search string in that line.
+.I Action_func
+should return true (non-zero) if the search should continue, or
+false (zero) if the search should terminate at this point.
+.PP
+.I Bmg_search
+is like
+.IR bmg_fsearch ,
+except that instead of searching a file, it searches the buffer
+pointed to by
+.IR buffer_base ;
+.I buffer_length
+specifies the number of bytes in the buffer.
+The
+.I byte_offset
+parameter to
+.I action_func
+gives the offset from the beginning of the buffer.
+.PP
+If the user merely wants the matching lines printed on the
+standard output, the
+.I action_func
+parameter
+to
+.I bmg_fsearch
+or
+.I bmg_search
+can be NULL.
+.SH AUTHOR
+Jeffrey Mogul (Stanford University), based on code written
+by James A. Woods (NASA Ames)
+.SH BUGS
+Might be nice to have a version of this that handles regular expressions.
+.PP
+There are large, but finite, limits on the length of both pattern
+strings and text lines.  When these limits are exceeded, all bets are off.
+.PP
+The string pointer passed to
+.I action_func
+points to a temporary copy of the matching line, and must be
+copied elsewhere before
+.I action_func
+returns.
+.PP
+.I Bmg_search
+does not
+.I permanently
+modify the buffer in any way, but during its execution (and therefore
+when
+.I action_func
+is called), the last byte of the buffer may be temporarily changed.
+.PP
+The Boyer-Moore algorithm cannot find lines that do not contain
+a given pattern (like "grep -v") or count lines ("grep -n").
+Although it is fast even for short search strings, it gets faster as
+the search string length increases.

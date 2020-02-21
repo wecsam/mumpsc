@@ -1,0 +1,1131 @@
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#+   
+#+     Mumps Bioinformatics Software Library
+#+     Copyright (C) 2003, 2004, 2008 by Kevin C. O'Kane  
+#+
+#+     Kevin C. O'Kane
+#+     kc.okane@gmail.com
+#+     okane@cs.uni.edu
+#+     http://www.cs.uni.edu/~okane
+#+     http://threadsafebooks.com/
+#+
+#+ This program is free software; you can redistribute it and/or modify
+#+ it under the terms of the GNU General Public License as published by
+#+ the Free Software Foundation; either version 2 of the License, or
+#+ (at your option) any later version.
+#+ 
+#+ This program is distributed in the hope that it will be useful,
+#+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#+ GNU General Public License for more details.
+#+ 
+#+ You should have received a copy of the GNU General Public License
+#+ along with this program; if not, write to the Free Software
+#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+//#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#+
+//#+    Some of this code was originally written in Fortran
+//#+    which will explain the odd array and label usage,
+//#+    especially arrays beginning at index 1.
+//#+
+//#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//#+
+//#+	Not all functions work at present.
+//#+
+//#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+// modified August 1, 2002 
+
+#define Sysout(x) fprintf(Out,x)
+
+#include <mumpsc/memsize.h>
+
+#include <stdio.h>
+#include <fcntl.h>
+#include <math.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define GBLROOT 30
+
+#define CRTN '\15'
+#define CTRLZ '\032'
+#define TAB '\011'
+#define LINEFEED '\012'
+
+extern FILE *Out;
+void linepad (int, char *);
+void cannon (char []);
+
+void errmod_ (msgnbr, text, opnfile)
+
+     FILE *opnfile[];
+     short msgnbr;
+     unsigned char text[];
+
+{
+
+#include <mumpsc/externs.h>
+
+  char msg[80];
+
+  switch (msgnbr - 1) {
+
+case 0:
+
+      strcpy (msg, "multiple operators");
+      break;
+
+case 1:
+
+      strcpy (msg, "unmatched quotes");
+      break;
+
+case 2:
+
+      strcpy (msg, "global not found");
+      break;
+
+case 3:
+
+      strcpy (msg, "expecting comma");
+      break;
+
+case 4:
+
+      strcpy (msg, "argument not permitted");
+      break;
+
+case 5:
+
+      strcpy (msg, "post-conditional error");
+      break;
+
+case 6:
+
+      strcpy (msg, "invalid quote");
+      break;
+
+case 7:
+
+      strcpy (msg, "label or file not found");
+      break;
+
+case 8:
+
+      strcpy (msg, "too many/few fcn args");
+      break;
+
+case 9:
+
+      strcpy (msg, "invalid nbr");
+      break;
+
+case 10:
+
+      strcpy (msg, "missing operator");
+      break;
+
+case 11:
+
+      strcpy (msg, "unrecognized operator");
+      break;
+
+case 12:
+
+      strcpy (msg, "keyword");
+      break;
+
+case 13:
+
+      strcpy (msg, "argument list");
+      break;
+
+case 14:
+
+      strcpy (msg, "divide by zero");
+      break;
+
+case 15:
+
+      strcpy (msg, "invalid expression");
+      break;
+
+case 16:
+
+      strcpy (msg, "variable not found");
+      break;
+
+case 17:
+
+      strcpy (msg, "invalid reference");
+      break;
+
+case 18:
+
+      strcpy (msg, "logical space exceeded");
+      break;
+
+case 19:
+
+      strcpy (msg, "I/O Error");
+      break;
+
+case 20:
+
+      strcpy (msg, "21");
+      break;
+
+case 21:
+
+      strcpy (msg, "22");
+      break;
+
+case 22:
+
+      strcpy (msg, "symbol table full");
+      break;
+
+case 23:
+
+      strcpy (msg, "function argument error");
+      break;
+
+case 24:
+
+      strcpy (msg, "global not permitted");
+      break;
+
+case 25:
+
+      strcpy (msg, "file error");
+      break;
+
+case 26:
+
+      strcpy (msg, "Next/$Order error");
+      break;
+
+case 27:
+
+      strcpy (msg, "28");
+      break;
+
+case 28:
+
+      strcpy (msg, "break> at line:");
+      break;
+
+case 29:
+
+      strcpy (msg, "function not found");
+      break;
+
+case 30:
+
+      strcpy (msg, "program space exceeded");
+      break;
+
+case 31:
+
+      strcpy (msg, "stack overflow");
+      break;
+
+    }
+
+  printf ("\n>> %d %s", msgnbr, msg);
+  printf ("\n>> %s", text);
+  return;
+}
+
+
+xindex (source, ptrn, strt)
+
+     unsigned char source[], ptrn[];
+     short strt;
+
+{
+  short int i, j, k, l, istrt;
+
+  for (i = 0; ptrn[i] != 0; i++); --i;
+  for (j = 0; source[j] != 0; j++); --j;
+  istrt = strt - 1;
+  if (strt <= 1) istrt = 0;
+  for (k = istrt; k <= j; k++) {
+      for (l = 0; l <= i; l++) {
+            if (ptrn[l] != source[k + l]) goto outer;
+            }
+      return (k + 1);
+
+outer:      ;
+
+    }
+  return (0);
+}
+
+
+void lpad (strin, strout, l)
+     unsigned char strin[], strout[];
+     short l;
+
+{
+  short int j, i, k;
+  j = strlen (strin) - 1;
+  k = (l - j - 1);
+  if (k <= 0) return;
+  for (i = j; i >= 0; i--) strout[i + k] = strin[i];
+  strout[j + k + 1] = 0;
+  for (i = 0; i < k; i++) strout[i] = ' ';
+  return;
+}
+
+void inout (text, cmnd, col)
+     unsigned char text[];
+     short cmnd;
+     unsigned char col[];
+
+{
+#include <mumpsc/externs.h>
+  short int i, j, dev;
+  unsigned char * Extract2(unsigned char *);
+
+  switch (cmnd) {
+
+    case 1:			/* new page     */
+
+      fprintf (Out, "\t fprintf(svPtr->out_file[svPtr->io],\"\\f\");");
+      fprintf (Out, "svPtr->hor[svPtr->io]=1; svPtr->ver[svPtr->io]=1;\n");
+      return;
+
+    case 2:			/* skip line    */
+
+      fprintf (Out, "\t fprintf(svPtr->out_file[svPtr->io],\"\\n\"); ");
+      fprintf (Out, "svPtr->hor[svPtr->io]=0; svPtr->ver[svPtr->io]++;\n");
+      return;
+
+    case 3:			/* tab */
+
+	fprintf ( Out,
+		"\t _Column(&svPtr->hor[svPtr->io],&svPtr->ver[svPtr->io],%s,svPtr->out_file[svPtr->io]);\n",
+		Extract2(col));
+	return;
+
+      // fprintf(Out,"\t file[5]=stdout;\n");
+      fprintf (Out, "\t if (svPtr->hor[svPtr->io]>atoi((const char *) %s)) {\n", Extract2(col));
+      fprintf (Out, "\t\t fprintf(svPtr->out_file[svPtr->io],\"\\n\");\n");
+      fprintf (Out, "\t\t for(_i=0;_i<atoi((const char *) %s);_i++) fprintf(svPtr->out_file[svPtr->io],\" \");\n", Extract2(col));
+      fprintf (Out, "\t\t svPtr->hor[svPtr->io]=atoi((const char *) %s);\n\t\t svPtr->ver[svPtr->io]++;\n", Extract2(col));
+      fprintf (Out, "\t\t }\n");
+      fprintf (Out, "\t else if (svPtr->hor[svPtr->io]<atoi((const char *) %s)) {\n", Extract2(col));
+      fprintf (Out, "\t\t for(_i=svPtr->hor[svPtr->io];_i<atoi((const char *) %s);_i++) fprintf(svPtr->out_file[svPtr->io],\" \");\n", Extract2(col));
+      fprintf (Out, "\t\t svPtr->hor[svPtr->io]=atoi((const char *) %s);\n", Extract2(col));
+      fprintf (Out, "\t\t }\n");
+      return;
+
+    case 4:			/* text print */
+
+      //fprintf(Out,"\tfile[5]=stdout;\n");
+      fprintf (Out, 
+            "\t svPtr->hor[svPtr->io]+=fprintf(svPtr->out_file[svPtr->io],\"%%s\",%s);\n", 
+            Extract2(text));
+      return;
+    }
+}
+
+getstr1 (popn, opnflg, opnfile, lun, area)
+     FILE *opnfile[];
+     unsigned char area[];
+     unsigned char opnflg[];
+     short int lun;
+     int popn[7][4];
+
+{
+
+#include <mumpsc/externs.h>
+
+  short int i, chr;
+  if (opnflg[lun] == 3) {
+      area[0] = 27;
+      area[1] = 'r';
+      area[2] = 0;
+      write (popn[lun][1], area, 2);	/* request data */
+      i = read (popn[lun][2], area, 1000);
+      return (i);
+      }
+
+  if (lun == 5) opnfile[lun] = stdin;
+
+  for (i = 0; i < 1000; i++) { /* restrict input line length */
+      chr = fgetc (opnfile[lun]);
+      if (chr == EOF) {
+	  area[0] = 0;
+	  return (-1);
+	  }
+
+      area[i] = chr;
+      if (area[i] == LINEFEED) {
+	  area[i] = 0;
+	  return (i);
+	  }
+
+      if (area[i] > 127) area[i] = ' ';
+      if (area[i] == '\n') i--;
+      else if (area[i] == '\r') i--;
+      else if (area[i] == '\t') area[i] = '\t';
+      else if (area[i] < 32) area[i] = ' ';
+      }
+  
+  area[1000] = 0;		/* restricted length */
+  return (-1);
+}
+
+void substr (in, out, start, len)
+     short start, len;
+     unsigned char in[], out[];
+
+{
+  short i;
+
+  if (len == 0) {
+      out[0] = 0;
+      return;
+      }
+
+  if (len < 0) len = 255;
+  else if (len > 255) len = 255;
+
+  start--;
+  len--;
+  for (i = 0; i <= len; i++) out[i] = in[start++];
+  out[len + 1] = 0;
+  return;
+}
+
+int readf_ (FILE *infile) {
+
+#include <mumpsc/externs.h>
+
+  long int i, k, n;
+
+  n = 1;
+
+  for (i = 1; 1; i++) {
+
+      k = getc (infile);
+
+      if (k > 200) continue;
+
+#ifdef NOTABS
+      if (k=='\t') k=' ';
+#endif
+
+      if (k == CRTN || k == CTRLZ) continue;
+
+      if (k == LINEFEED) {
+	  pd1[n++] = 0;
+	  continue;
+	  }
+
+      if (k < 1) {
+	  pd1[n] = 0;
+	  pd1[n + 1] = 0;
+	  pd1len = n - 1;
+	  return (1);
+	  }
+
+      if (k > 0) pd1[n++] = k;
+      }
+}
+
+void match (pts, lx, ct, ad, rslt)
+     short *rslt, pts[3][20], ct[], lx;
+     unsigned char ad[];
+
+{
+
+#include <mumpsc/externs.h>
+
+  unsigned char tmp[2], tmp1[1024], tmp2[1024];
+  short ptr, i, j;
+  ptr = (-1);
+  *rslt = 0;
+  tmp[1] = 0;
+  for (i = 1; i <= lx; i++) {
+      if (ct[i] == 0)
+	continue;
+      switch (bd[pts[1][i]]) {
+
+case 'C':
+case 'c':
+
+	  for (j = 1; j <= ct[i]; j++) {
+	      ptr++;
+	      if (ptr > strlen (ad)) return;
+	      if (ad[ptr] < 32) continue;
+	      if (ad[ptr] == 127) continue;
+	      return;
+	      }
+
+	  break;
+
+case 'N':
+case 'n':
+
+	  for (j = 1; j <= ct[i]; j++) {
+	      ptr++;
+	      if (ptr > strlen (ad)) return;
+	      if (ad[ptr] >= '0' && ad[ptr] <= '9') continue;
+	      return;
+	      }			/* for j=... */
+
+	  break;
+
+case 'P':
+case 'p':
+
+	  for (j = 1; j <= ct[i]; j++) {
+	      ptr++;
+	      if (ptr > strlen (ad)) return;
+	      tmp[0] = ad[ptr];
+	      if (xindex (" !\"#$%&''()*+,-./:;<=>?@[\\]^_`{|}~", tmp, 1) > 0) continue;
+	      return;
+	      }			/* for j=... */
+
+	  break;
+
+case 'A':
+case 'a':
+
+	  for (j = 1; j <= ct[i]; j++) {
+	      ptr++;
+	      if (ptr > strlen (ad)) return;
+	      if (ad[ptr] >= 65 && ad[ptr] <= 90) continue;
+	      if (ad[ptr] >= 97 && ad[ptr] <= 122) continue;
+	      return;
+	      }			/* for j... */
+
+	  break;
+
+case 'L':
+case 'l':
+
+	  for (j = 1; j <= ct[i]; j++) {
+	      ptr++;
+	      if (ptr > strlen (ad)) return;
+	      if (ad[ptr] >= 97 && ad[ptr] <= 122) continue;
+	      return;
+	    }			/*for j=... */
+
+	  break;
+
+case 'U':
+case 'u':
+
+	  for (j = 1; j <= ct[i]; j++) {
+	      ptr++;
+	      if (ptr > strlen (ad)) return;
+	      if (ad[ptr] >= 65 && ad[ptr] <= 90) continue;
+	      return;
+	      }			/* for j=... */
+
+	  break;
+
+case 'E':
+case 'e':
+
+	  for (j = 1; j <= ct[i]; j++) {
+	      ptr++;
+	      if (ptr > strlen (ad)) return;
+	      if (ad[ptr] > 127) return;
+	      }
+
+	  break;
+
+case '"':
+
+	  for (j = 1; j <= ct[i]; j++) {
+	      if (pts[2][i] == 0) continue;
+	      if (ptr + pts[2][i] - 1 > strlen (ad)) return;
+	      ptr++;
+	      substr (&ad[ptr], tmp1, 1, pts[2][i] - 1);
+	      substr (&bd[1], tmp2, pts[1][i] + 1, pts[2][i] - 1);
+	      if (strcmp (tmp2, tmp1) != 0) return;
+	      ptr = ptr + strlen (tmp1) - 1;
+	      }
+
+	  break;
+
+default:
+
+	  return;
+	  }
+    }				/* for i=... */
+
+  if (ptr + 1 != strlen (ad)) return;
+  *rslt = 1;
+  return;
+
+}				/* match() */
+
+void patrn (ad)
+
+     unsigned char ad[];
+
+{
+
+#include <mumpsc/externs.h>
+
+  unsigned char indef, tmp[10];
+  short iptr, k, j, i, m, pts[3][20], lx, count[20], ct2[20], stk[20], stx;
+  short high[20], low[20], lad;
+
+  indef = 0;
+  lx = 0;
+  lad = strlen (ad);
+
+  for (i = 0; i < 20; i++) {
+      high[i] = lad;
+      low[i] = 0;
+      }
+
+  for (i = 1; i <= strlen (&bd[1]); i++) {
+
+      lx++;
+      if (bd[i] < '0' || bd[i] > '9') {
+	  if (bd[i] != '.') i--;
+	  count[lx] = (-1);
+	  indef = 1;
+	  i++;
+	  if (bd[i] >= '0' && bd[i] <= '9') {
+	      j = i;
+	      while (bd[i] >= '0' && bd[i] <= '9')
+		i++;
+	      substr (&bd[1], tmp, j, i - j);
+	      cannon ((char *) tmp);
+	      high[lx] = atoi (tmp);
+	      }
+	  }
+
+      else {
+	  j = i;
+	  while (bd[i] >= '0' && bd[i] <= '9') i++;
+	  substr (&bd[1], tmp, j, i - j);
+	  cannon (tmp);
+	  count[lx] = atoi (tmp);
+	  if (bd[i] == '.') {
+	      low[lx] = count[lx];
+	      count[lx] = -1;
+	      indef = 1;
+	      i++;
+	      if (bd[i] >= '0' && bd[i] <= '9') {
+		  j = i;
+		  while (bd[i] >= '0' && bd[i] <= '9') i++;
+		  substr (&bd[1], tmp, j, i - j);
+		  cannon (tmp);
+		  high[lx] = atoi (tmp);
+		  }
+	      }
+	  }
+
+      if (bd[i] != '"') {
+	  tmp[0] = bd[i];
+	  tmp[1] = 0;
+	  if (xindex ("cnpalue", tmp, 1) == 0 &&
+	      xindex ("CNPALUE", tmp, 1) == 0) goto err;
+	  pts[1][lx] = i;
+	  pts[2][lx] = 1;
+	  continue;
+	  }
+
+      j = i;
+
+      if (bd[j + 1] == '"') {
+	  j++;
+	  pts[1][lx] = i;
+	  pts[2][lx] = 0;
+	  i = j;
+	  continue;
+	  }
+
+a108:
+
+      if (bd[++j] == 0) goto err;
+
+      if (bd[j] != '"') {
+	  if (bd[j] == 210) bd[j] = '"';
+	  goto a108;
+	  }
+
+      pts[1][lx] = i;
+      pts[2][lx] = j - i;
+      i = j;
+      }
+
+  if (indef != 1) {
+      match (pts, lx, count, ad, &j);
+      ierr1 = j;
+      return;
+      }
+
+  stx = 0;
+  for (i = 1; i <= lx; i++) {
+      if (count[i] < 0)
+	stk[++stx] = i;
+      }
+
+  for (i = 1; i <= lx; i++) {
+      if (count[i] >= 0)
+	ct2[i] = count[i];
+      else
+	ct2[i] = low[i];
+      }
+
+  iptr = stx;
+  goto retry1;
+
+retry:
+
+      ct2[stk[1]]++;
+
+retry1:
+
+      if (ct2[stk[1]] > lad || ct2[stk[1]] > high[stk[1]]) {
+            ct2[stk[1]] = low[stk[1]];
+            m = 2;
+            if (stx == 1) {
+	            ierr1 = 0;
+	            return;
+	            }
+            ct2[stk[m]]++;
+
+recount:
+
+            if (ct2[stk[m]] > lad || ct2[stk[m]] > high[stk[m]]) {
+
+                  if (m >= stx) {
+                        ierr1 = 0;
+                        return;
+                        }
+
+                  ct2[stk[m]] = low[stk[m]];
+                  m++;
+                  ct2[stk[m]]++;
+                  goto recount;
+                  }
+            }
+
+  k = 0;
+  for (j = 1; j <= lx; j++) k = k + ct2[j];
+  if (k > lad) goto retry;
+
+  match (pts, lx, ct2, ad, &j);
+
+  if ((ierr1 = j) == 1) return;
+  goto retry;
+
+err:
+
+      ierr1 = 99;
+      return;
+}
+
+void patrn1 (jpx, ernbr)
+  /* pattern argument (right side) set up */
+     short *jpx, *ernbr;
+
+{
+
+#include <mumpsc/externs.h>
+
+  int m=0;
+  static unsigned char tmp1[2], cod210[2] = { 210, 0 };
+  tmp1[0] = 0;
+  tmp1[1] = 0;
+
+a1285:
+
+      if (xd[*jpx] == '"') {
+            strcat (&bd[1], "\"");
+
+a1283:
+
+            *jpx = (*jpx + 1);
+            if (xd[*jpx] == 0) {
+	            *ernbr = 2;
+	            return;
+	            }
+
+            if (xd[*jpx] == '"') {
+                  if (xd[*jpx + 1] != '"') goto a1281;
+                  strcat (&bd[1], cod210);
+                  *jpx = (*jpx + 1);
+                  }
+
+            else {
+                  tmp1[0] = xd[*jpx];
+                  strcat (&bd[1], tmp1);
+                  }
+
+            goto a1283;
+            }
+
+a1281:
+
+
+      if (xd[*jpx] != 0) {
+            tmp1[0] = xd[*jpx];
+            if (m!=0 || xindex (" ,&:!''><=[)+-*/#_", tmp1, 1) == 0) {
+                  if (xd[*jpx]=='(') m++;
+                  if (xd[*jpx]==')') m--;
+	            strcat (&bd[1], tmp1);
+	            *jpx = (*jpx + 1);
+	            goto a1285;
+	            }
+            }
+
+  xpx = (*jpx - 1);
+  *ernbr = 0;
+  return;
+}
+
+  sigc ()
+
+{
+#include <mumpsc/externs.h>
+  ctrlc = 1;
+  return (1);
+}
+
+itoa (val, str, rad)
+     int val, rad;
+     char *str;
+{
+
+  sprintf (str, "%d", val);
+  return;
+}
+
+
+int MyFunc (unsigned char v1d[], int iiitmp) {
+
+  extern short ArgMax;
+  char bd[1024], name[128]="", lbl[128]="\"\"";
+  int i, j, k, l, BFlg;
+  extern short ExitCode;
+  extern int lines;
+  unsigned char * Extract2(unsigned char *);
+
+#include <mumpsc/builtinTable.h>
+
+  for (i = 0; v1d[i] != 0 && v1d[i] < 127 && v1d[i] != ' '; i++) name[i] = v1d[i];
+
+  if (v1d[i] != 0) strcpy (v1d, &v1d[i + 1]);
+        else strcpy (v1d, "");
+
+  name[i] = 0;
+
+      BFlg=0;
+      for (j=0; strlen(BuiltIn[j])!=0; j++) if (strcmp(name,BuiltIn[j])==0) {BFlg=1; break;}
+
+  j = 1;
+  k = 0;
+
+  while (strlen (v1d) > 0) {
+
+      if (k > 29) {
+	  printf ("*** Too Many Extrinsic Function Arguments");
+        printf (" in or near line %d\n",lines);
+	  ExitCode = 99;
+	  k = 9;
+	  }
+
+      for (i = 0; v1d[i] != 0 && v1d[i] < 127; i++);
+      j = v1d[i];
+      v1d[i] = 0;
+
+      if (BFlg && strncmp(v1d,"#S#",3)!=0) 
+            fprintf (Out, "\t strmove((unsigned char *) __Arg%d,(unsigned char *) %s); /* Set up arguments D1002*/\n", 
+                  k, Extract1(v1d));  // args to fcns in BuilinIn.h passed as is
+      else fprintf (Out, "\t strmove((unsigned char *) __Arg%d,(unsigned char *) %s); /* Set up arguments D1003*/\n", 
+                  k, Extract2(v1d));
+      strcpy (v1d, &v1d[i + 1]);
+      k++;
+      }
+  if (k>ArgMax) ArgMax=k;
+
+  strcpy (bd, "gtmp");
+  fprintf (Out, "\t _ArgCount=%d;\n", k);
+
+  for (i=0; name[i]!=0; i++) if (name[i]=='^') break;
+
+  if (name[i] != '^') {  //* a local reference DO
+
+
+      fprintf (Out, "\t _doStx++;\n");
+      fprintf (Out, "\t if (_doStx > 127 ) ErrorMessage(\"Too many function calls\",svPtr->LineNumber);\n",k);
+
+      fprintf (Out,"\t sym_(99, (unsigned char *) \"\", (unsigned char *) \"\", svPtr); \n");
+
+      if (isdigit(name[0])) fprintf (Out, "\t if (setjmp(_doStack[_doStx])==0) goto _%s;", name);
+      else fprintf (Out, "\t if (setjmp(_doStack[_doStx])==0) goto %s;", name);
+      fprintf(Out,"  /* Jump to function */\n");
+
+      fprintf (Out, "\t _doStx--; \n");
+
+      if (iiitmp >= 0)
+	fprintf (Out, "\t strmove((unsigned char *) tmp%d,(unsigned char *) _ReturnVal); // Copy result\n", iiitmp);
+      return 0;
+      }
+
+/* -----------------------------------------------*/
+/* a non-local reference DO - has one or more ^   */
+/* -----------------------------------------------*/
+
+  if (i!=0) { /* external name contains label */
+      name[i]=0;
+      strcpy(lbl,"\"");
+      strcat(lbl,name);
+      strcat(lbl,"\"");
+      name[i]='^';
+      strcpy(name,&name[i]);
+      }
+
+  if (name[0]=='^' && name[1]=='^') { /* double ^ */
+
+//      for (i=0; lbl[i]!='\0'; i++) { /* valid LLL:  LLL^^RRR ? */
+//            if (isalnum(lbl[i])) continue;
+//            if (lbl[i]=='%') continue;
+//            if (lbl[i]=='\"') continue;
+//            return 9002;
+//            }
+
+//      fprintf (Out, "\t strmove((unsigned char *) tmp%d,(unsigned char *)%s(svPtr, (char *) %s", iiitmp, &name[2],lbl);  //#+ function call
+
+       fprintf(Out,
+            "\t_jj=Interpret(\"x \\\"do ^%s\\\"\",svPtr);\n",&name[1]);
+       fprintf(Out, "\tsvPtr->ERROR=_jj;\n");
+       fprintf(Out,
+            "\tif (!svPtr->NOERR && _jj<0) "
+            "ErrorMessage(\"Indirection error\",svPtr->LineNumber);");
+
+//      if (k == 0) {
+//            fprintf (Out, ")); // Call compiled function\n");
+//            return 0;
+//            }
+
+//      fprintf (Out, ",");
+//      for (i = 0; i < k - 1; i++) fprintf (Out, "(char *) __Arg%d,", i);
+//      fprintf (Out, "(char *) __Arg%d));\n", k - 1);
+      return 0;
+      }
+
+  if (name[0]=='^' ) { /* single ^ */
+
+      for (i=0; lbl[i]!='\0'; i++) { /* valid LLL:  LLL^^RRR ? */
+            if (isalnum(lbl[i])) continue;
+            if (lbl[i]=='%') continue;
+            if (lbl[i]=='\"') continue;
+            return 9002;
+            }
+
+//      fprintf (Out, "\t strmove((unsigned char *) tmp%d,(unsigned char *)%s(svPtr, (char *) %s", iiitmp, &name[1],lbl);  //#+ function call
+
+       fprintf(Out,
+            "\t_jj=Interpret(\"x \\\"do ^%s\\\"\",svPtr);\n",&name[1]);
+       fprintf(Out, "\tsvPtr->ERROR=_jj;\n");
+       fprintf(Out,
+            "\tif (!svPtr->NOERR && _jj<0) "
+            "ErrorMessage(\"Indirection error\",svPtr->LineNumber);");
+
+
+//      if (k == 0) {
+//            fprintf (Out, ")); // Call compiled function\n");
+//            return 0;
+//            }
+
+//      fprintf (Out, ",");
+//      for (i = 0; i < k - 1; i++) fprintf (Out, "(char *) __Arg%d,", i);
+//      fprintf (Out, "(char *) __Arg%d));\n", k - 1);
+      return 0;
+      }
+
+
+//  fprintf (Out,"\t SysDump((long)getpid(),svPtr);\n");
+//  fprintf (Out,"\t if (system(\"%s.cgi\")!=0) {\n", &name[1] );
+//  fprintf (Out,"\t\t char fn[64];\n"
+//      "\t\t Mltoa((long)getpid(),fn);\n"
+//      "\t\t remove(fn);\n" );
+//  fprintf (Out,"\t\t ErrorMessage(\"Child task failed\",svPtr->LineNumber); /* invoke program */\n"
+//      "\t\t sigint(100);\n" );
+//  fprintf (Out,"\t\t }\n");
+//  fprintf (Out,"\t { char fn[64]; \n");
+//  fprintf (Out,"\t\t SysLoad((long)getpid()); /* reload sysmbol table from disk */\n");
+//  fprintf (Out,"\t\t Mltoa((long)getpid(),fn);\n"
+//      "\t\t remove(fn); }\n" );
+
+//  Sysout ("#else\n");
+
+//  fprintf (Out,"\t SysDump(999L,svPtr);\n");
+//  fprintf (Out,"\t if (system(\"%s.exe\")!=0) {\n", &name[1] );
+//  fprintf (Out,"\t\t char fn[64];\n"
+//      "\t\t Mltoa(999L,fn);\n"
+//      "\t\t remove(fn);\n" );
+//  fprintf (Out,"\t\t ErrorMessage(\"Child task failed\",svPtr->LineNumber); /* invoke program */\n"
+//      "\t\t sigint(100);\n" );
+//  fprintf (Out,"\t\t }\n");
+//  fprintf (Out,"\t { char fn[64]; \n");
+//  fprintf (Out,"\t\t SysLoad(999L); /* reload sysmbol table from disk */\n");
+//  fprintf (Out,"\t\t Mltoa(999L,fn);\n"
+//      "\t\t remove(fn); }\n" );
+//  Sysout ("#endif\n");
+  return 9003;
+}
+
+void linepad (int sent, char *str) {
+  int i, j, f=0;
+  fprintf (Out, "  /* %s */\n", str);
+  return;
+}
+
+void linepad1 (char * str) {
+  int i,j;
+  i=fprintf(Out,"/* %s ",str);
+  for (j=i; j<25; j++) fprintf(Out,".");
+  fprintf(Out,"*/ ");
+  return;
+  }
+
+void linepad2 (char * str) {
+      int i;
+      fprintf (Out,"/*** %s */\n",str);
+      return;
+      }
+
+void mult( char [], char[], char[]);
+
+void cannon (char a[]) {
+
+  int i, j, k;
+  char tmp[25];
+
+i = 0;
+j = 0;
+while (a[i] == '+' || a[i] == '-') {
+    if (a[i] == '-')
+      if (j == 0) j = 1;
+      else j = 0;
+    i++;
+    }
+
+if (i > 0) {
+    if (j == 0) strcpy (a, &a[i]);
+    else {
+	a[0] = '-';
+	if (i > 1) strcpy (&a[1], &a[i]);
+      }
+  }
+
+j = -1;
+while (a[i] == '.' || (a[i] >= '0' && a[i] <= '9')) {
+    if (a[i] == '.')
+      j = i;
+    i++;
+    }
+
+if (i == 0) {
+    a[0] = '0';
+    a[1] = 0;
+    return;
+    }
+
+if (a[i] != 'E' && a[i] != 'e') a[i] = 0;
+
+if (a[i] == 0) {
+    if (j >= 0) {
+	for (i--; a[i] == '0'; i--) a[i] = 0;
+	if (a[i] == '.') a[i] = 0;
+	if (i == 0) {
+	    a[0] = '0';
+	    a[1] = 0;
+	  }
+      }
+
+    if (a[0] == '-') j = 1;
+    else j = 0;
+
+    while (a[j] == '0') strcpy (&a[j], &a[j + 1]);
+
+    if (a[j] == 0) {
+	a[0] = '0';
+	a[1] = 0;
+      }
+
+    if (a[j] == '.' && a[j + 1] == 0) a[j] = '0';
+    return;
+  }
+
+if (a[i] != 'e' && a[i] != 'E') return;
+
+a[i] = 0;
+i++;
+if (a[i] == '-') {
+    i++;
+    j = 1;
+  }
+
+else {
+    j = 0;
+    if (a[i] == '+')
+      i++;
+  }
+
+for (k = 0; (tmp[k] = a[i]) != 0 && (tmp[k] >= '0' && tmp[k] <= '9');
+     (k++, i++));
+
+tmp[k] = 0;
+i = atoi (tmp);
+if (i > 0)
+  if (j == 0)
+    for (j = 1; j <= i; j++) mult (a, "10", a);
+  else for (j = 1; j <= i; j++) mult (a, ".1", a);
+return;
+}
+
+#define NO 0
+#define YES 1
+
+#ifdef GCVT
+
+void gcvt (x, i, a)
+     char a[];
+     double x;
+     int i;
+
+{
+  sprintf (a, "%g", x);
+  return;
+}
+#endif
+
+void mult (a, b, c)
+
+     char a[], b[], c[];
+
+{
+
+  float aa, bb, cc;
+
+  double atof ();
+
+  aa = atof (a);
+  bb = atof (b);
+  cc = aa * bb;
+  gcvt (cc, 7, c);
+  return;
+}
+

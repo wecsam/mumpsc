@@ -1,0 +1,470 @@
+/*#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+	Mumps Compiler Run-Time Support Functions
+ *#+	Copyright (c) A.D. 2001, 2002, 2003, 2010, 2012, 2017 by Kevin C. O'Kane
+ *#+	okane@cs.uni.edu
+ *#+
+ *#+	This library is free software; you can redistribute it and/or
+ *#+	modify it under the terms of the GNU Lesser General Public
+ *#+	License as published by the Free Software Foundation; either
+ *#+	version 2.1 of the License, or (at your option) any later version.
+ *#+
+ *#+	This library is distributed in the hope that it will be useful,
+ *#+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *#+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *#+	Lesser General Public License for more details.
+ *#+
+ *#+   You should have received a copy of the GNU Lesser General Public
+ *#+	License along with this library; if not, write to the Free Software
+ *#+	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *#+
+ *#+	http://www.cs.uni.edu/~okane
+ *#+
+ *#+    The sockets code was done by Ben Fain
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+
+ *#+	Some of this code was originally written in Fortran
+ *#+	which will explain the odd array and label usage,
+ *#+	especially arrays beginning at index 1.
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ *#+
+ *#+	This is the native btree global array handler from the
+ *#+	Mumps Compiler.
+ *#+
+ *#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+// the next item becomes #define NATIVE or POSTGRESSDB depending on the DB in use
+
+@dbtype@
+
+@client_server@
+
+// the next item becomes #define CLIENT if --with-client specified in configure
+
+@client@
+
+// the next item becomes the size of the buffer used to send msgs to/from the server
+
+@serverbuf@
+
+// determine if this is a standalone database compile
+// defines NATIVE_STANDALONE if true.
+
+@standalone@
+
+#include <unistd.h>
+
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <iostream>
+
+#if defined(NATIVE_CLIENT_SERVER)
+#include <sys/syscall.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#endif
+
+#include <mumpsc/defines.h>
+#include <mumpsc/stateVector.h>
+#include <mumpsc/global.h>
+#include <mumpsc/defines.h>
+#include <mumpsc/btree.h>
+#include <mumpsc/keyfix.h>
+
+#if defined(NATIVE_CLIENT_SERVER)
+
+struct mymsgbuf {
+    long cid;                 /* Client ID */
+    char buff0[SERVERBUF+1];  /* Buf0 sent from client*/
+    char buff1[SERVERBUF];    /* Buf1 sent from client*/
+    struct socketdata {       /* Socket Data needed to send data back to client */
+        int socket;
+        char  socketname[108];
+        } socketinfo;
+    };
+
+int send_message( int qid, mymsgbuf qbuf ) {
+    int     result, length;
+
+    /* The length is essentially the size of the structure minus sizeof(mtype) */
+    length = sizeof(struct mymsgbuf)-sizeof(long);
+
+    if((result = msgsnd( qid, &qbuf, length, 0)) == -1) {
+        return(-1);
+        }
+
+    return(result);
+    }
+
+
+int open_queue(key_t keyval) {
+    int qid = 1;
+
+    if ((qid = msgget(keyval,0777)) == -1) {
+        return -1;
+        }
+
+    return qid;
+    }
+
+#endif
+
+int Mglobal (const int g, unsigned char key[], unsigned char bd[], struct MSV * svPtr) {
+
+//    void keyfix (unsigned char *vxd, struct MSV * svPtr);
+    void unpad(unsigned char *key, struct MSV *svPtr);
+
+    void sigint(int);
+    static int CloseFlg=0;
+    void flush(MSV *);
+
+// ********************  C L I E N T  C O D E *********************************
+// ********************  C L I E N T  C O D E *********************************
+// ********************  C L I E N T  C O D E *********************************
+
+#ifdef CLIENT
+
+// Variables for socket and message queue
+
+    struct sockaddr_un name;
+    static int sock,qid,ret,length,namelength,size,ret1,ret2;
+    static key_t  msgkey;
+    static struct mymsgbuf msg;
+    static char retBuff0[SERVERBUF+1];
+    static char retBuff1[SERVERBUF];
+    static int pid;
+
+// ******************* Open socket for return data ***********************
+
+// Generate unique filename for each socket
+
+    static char tmp[100] = {0};
+
+    if (tmp[0]==0) {
+		sprintf(tmp,"/tmp/%d.tmp",getpid()); // only done once
+		syscall(SYS_chmod,tmp,0777);
+		msgkey = ftok("/tmp/mumps.tmp", 'A');
+		pid = getpid();
+		}
+
+// unlink(tmp)
+
+/* Create the socket. */
+
+    sock = socket (AF_UNIX, SOCK_DGRAM, 0);
+
+    if (sock < 0) {
+        perror ("Error Creating Socket");
+        exit (EXIT_FAILURE);
+        }
+
+/* Bind a name to the socket. */
+
+    name.sun_family = AF_UNIX;
+    strcpy (name.sun_path,tmp);
+
+    /* Socket size*/
+
+    size = sizeof(struct sockaddr_un);
+
+/* Bind the address to the socket */
+
+    if (bind (sock,(struct sockaddr *) &name, size) < 0) {
+        perror ("Binding Failure");
+        exit (EXIT_FAILURE);
+        }
+
+
+//    int rc = syscall(SYS_chmod,tmp,0777);
+
+// ********** open the message queue and return the id
+
+/* Generate an IPC key value */
+
+//    msgkey = ftok("/tmp/mumps.tmp", 'A');
+
+/* Open/create the queue */
+
+    if(( qid = open_queue( msgkey)) == -1) {
+        // don't print errmsg if closing - may not have been opened
+        if (g!=CLOSE) {
+            perror("open_queue");
+            printf("Is the server running?\n");
+            }
+
+        exit(1);
+        }
+
+//    static char netBuf0[SERVERBUF+1];
+//    static char netBuf1[SERVERBUF];
+
+    if (g==CLOSE) {
+        close(sock);
+        unlink(tmp);
+
+        // * disconnect from server code goes here
+
+        return 0;
+        }
+
+//************************************************************
+// SEND netBuf0 and netBuf1 to the server and wait for a reply
+//************************************************************
+
+// Fill the message
+
+//    msg.cid = getpid();
+    msg.cid = pid;
+
+    memcpy( &msg.buff0[1], (char *)key, sizeof(msg.buff0));
+    msg.buff0[0]=g;
+
+    memcpy(msg.buff1, (char *)bd, sizeof(msg.buff1));
+
+    msg.socketinfo.socket = sock;
+    memcpy(msg.socketinfo.socketname, name.sun_path, sizeof(name.sun_path));
+
+// Send the message
+
+    if( (send_message( qid, msg )) == -1) {
+        perror("Error Sending Message");
+        exit(1);
+        }
+
+//************************************************************
+// get reply netBuf0 and netBuf1 from server
+//************************************************************
+
+    length = sizeof(struct mymsgbuf);
+    namelength = sizeof(name);
+    ret1 = read(sock,retBuff0, SERVERBUF+1);
+    ret2 = read(sock,(char *) bd, SERVERBUF);
+
+    if ((ret1<0) || (ret2<0)) {
+        perror("receiving datagram packet");
+        exit(1);
+        }
+
+    strcpy( (char *) key, (char *) &retBuff0[1]);
+
+// close socket
+
+    close(sock);
+    unlink(tmp);
+
+    return retBuff0[0];
+
+#endif
+
+
+
+
+
+// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// non-client server mode begins here - inclueds native btree & DBMS interfaces
+// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+
+
+#if defined(POSTGRESSDB) || defined(MYSQLDB)
+    keyfix(key);
+    return btree(g,key,bd,svPtr);
+    }
+
+#else
+
+    unsigned char t1[2],t2[2];
+
+#ifdef NATIVE_STANDALONE
+
+    static int access=0;
+
+// native btree time slice
+
+    if (g==PULSE) { // called by main loop
+        access++;
+        if (access> @slice@) {
+            access=0;
+            btree(CLOSE,t1,t2,svPtr);
+            }
+
+        }
+
+#endif
+
+    if (g==RETRIEVE) {
+        int i;
+        keyfix(key);
+        i=btree(g,key,bd,svPtr);
+
+#ifdef NATIVE_STANDALONE
+        access++;
+        if (access> @slice@) {
+            access=0;
+            btree(CLOSE,t1,t2,svPtr);
+            }
+#endif
+
+        return i;
+        }
+
+    if (g==STORE) {
+        int i;
+        keyfix(key);
+        i=btree(g,key,bd,svPtr);
+
+#ifdef NATIVE_STANDALONE
+        access++;
+        if (access>@slice@) {
+            access=0;
+            btree(CLOSE,t1,t2,svPtr);
+            }
+#endif
+
+        return i;
+        }
+
+    if (g==ORDERNEXT || g==ORDERPREV ||
+            g==NEXT || g==PREVIOUS) {     /* prepare NEXT/ORDER cases */
+
+        int b,j,gx=g;
+        unsigned char hold[STR_MAX];
+        j=strlen( (const char *) key);
+
+        if (g!=ORDERNEXT && g!=ORDERPREV &&
+                key[j-1]==1 && key[j-2]=='1' &&
+                key[j-3]=='-' && key[j-4]==1) { /* $next -1 case */
+            key[j-3]=2;
+            key[j-2]=1;
+            key[j-2]=0;
+            key[j-1]=0;
+            strcpy( (char *) bd,"");
+            strcpy( (char *) svPtr->naked,"");
+            j--;
+            }
+        else if (g==NEXT || g==ORDERNEXT) {
+            key[j-1]=2;
+            key[j]=0;
+            key[j+1]=0;
+            key[j+2]=0;
+            key[j+3]=0;
+            strcpy( (char *) bd,"");
+            strcpy( (char *) svPtr->naked,"");
+            }
+        else if (g==ORDERPREV && key[j-1]==1 && key[j-2]==1) {
+            key[j-1]='~';
+            }
+
+        gx=g;
+
+        if (gx==NEXT) gx=XNEXT;
+        else if (gx==ORDERNEXT) gx=XNEXT;
+        else if (gx==ORDERPREV) gx=PREVIOUS;
+
+        keyfix(key);
+        strcpy( (char *) hold, (const char * ) key);
+        b=btree(gx,key,bd,svPtr);
+
+#ifdef NATIVE_STANDALONE
+        access++;
+        if (access>@slice@) {
+            access=0;
+            btree(CLOSE,t1,t2,svPtr);
+            }
+#endif
+
+        if (g==NEXT || g==ORDERNEXT || g==ORDERPREV) {
+            j=strlen( (const char *) hold)-1;
+
+            if (hold[j]==1) j--;
+
+            for (; j>0 && hold[j]!=1; j--);
+
+            if (strncmp(( const char  * ) hold,( const char  * ) bd,j)!=0 ||
+                    hold[j]!=1 ||
+                    bd[j]!=1) {
+                if (g==NEXT) strcpy( (char *) bd,"-1");
+                else strcpy( (char *) bd,"");
+
+                return 0;
+                }
+
+            if (j>0)  {
+                unsigned char * x=bd;
+                unsigned char * y= &bd[j+1];
+
+                for (; *y != 0; x++,y++) *x = *y; // STRCPY
+
+                *x=0;
+                }
+
+            for (j=0; bd[j]!=1&&bd[j]!=0; j++);
+
+            bd[j]=0;
+            unpad(bd,svPtr);
+
+            if (strlen( (const char *) bd)==0) {
+                if (g==NEXT) strcpy( (char *) bd,"-1");
+                else strcpy( (char *) bd,"");
+
+                return 0;
+                }
+
+            return 1;
+            }
+        }
+
+    if (g==GKILL) {
+        int i= btree(g,key,bd,svPtr);
+
+#ifdef NATIVE_STANDALONE
+        access++;
+        if (access>@slice@) {
+            access=0;
+            btree(CLOSE,t1,t2,svPtr);
+            }
+#endif
+
+        return i;
+        }
+
+    if (g==XNEXT) {
+        int i;
+        keyfix(key);
+        i= btree(g,key,bd,svPtr);
+
+#ifdef NATIVE_STANDALONE
+        access++;
+        if (access>@slice@) {
+            access=0;
+            btree(CLOSE,t1,t2,svPtr);
+            }
+#endif
+
+        return i;
+        }
+
+    if (g==CLOSE) {
+        btree(g,key,bd,svPtr);
+        return EXIT_SUCCESS;
+        }
+
+    return 0;
+    }
+
+#endif
+

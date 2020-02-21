@@ -1,0 +1,9 @@
+rm Mumps.DB
+rm __db*
+rm key.dat data.dat
+mumpsc index.mps
+mumpsc tab.mps
+tab.cgi < folder.list
+chmod a+rw Mumps.DB
+chmod a+rw __db*
+chmod a+x index.cgi

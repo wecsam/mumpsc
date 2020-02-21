@@ -1,0 +1,136 @@
+/*#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+**#+    Mumps Compiler General Parameters
+**#+    Copyright (c) A.D. 2001, 2002, 2003, 2017 by Kevin C. O'Kane
+**#+    okane@cs.uni.edu
+**#+
+**#+    This library is free software; you can redistribute it and/or
+**#+    modify it under the terms of the GNU Lesser General Public
+**#+    License as published by the Free Software Foundation; either
+**#+    version 2.1 of the License, or (at your option) any later version.
+**#+
+**#+    This library is distributed in the hope that it will be useful,
+**#+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+**#+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+**#+    Lesser General Public License for more details.
+**#+
+**#+   You should have received a copy of the GNU Lesser General Public
+**#+    License along with this library; if not, write to the Free Software
+**#+    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+**#+
+**#+    http://www.cs.uni.edu/~okane
+**#+
+**#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+**#+
+**#+    Some of this code was originally written in Fortran
+**#+    which will explain the odd array and label usage,
+**#+    especially arrays beginning at index 1.
+**#+
+**#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+/*#+............................................................................
+**#+
+**#+   **** READ THIS ****
+**#+
+**#+   unix:  set UNIX to 1 and set SYSTEM to UNIX, USYSTEM=UNIX
+**#+   linux: set UNIX to 1,  SYSTEM to UNIX, USYSTEM=LINUX
+**#+   DOS:   set UNIX to 0, SYSTEM to DOS, USYSTEM=DOS
+**#+
+**#+   BUF_PARSE    enables $ZWN, $ZWI and $ZWP functions
+**#+   MNORMAL       enable $ZA and $ZN functions
+**#+   ALLOW_POSTGRES enables postgreSQL (Linux only - untested with Unix)
+**#+   SQL          enables ODBC SQL interface (DOS only)
+**#+   STEM         enables word stemming
+**#+   GCVT         enables gcvt if your library lacks gcvt()
+**#+   SINGLE       enables single user mode for Globals - see SERVER
+**#+   BerkeleyDB   cause the BDB to be used, otherwise, uses old native Btree.
+**#+   STR_MAX      maximum string length. Globalx block is twice this number.
+**#+   SERVER       define if globals are to be used in in a server
+**#+
+**#+   NEW_TREE     enables temporary Global array files (suitable if
+**#+       your main data base is SQL.  Do not define for permanent Globals. If
+**#+       defined, Globals will be created and deleted for each run.  This is
+**#+       suitable if you are using a SQL server for data base storage.
+**#+
+**#+   DELIM is the delimiter that separates columns in results retrieved
+**#+       from PostgreSQL and stored in a Global array.
+**#+
+**#+   SUB is defined if the routine being compiled is a subfunction.  Definition
+**#+       of SUB prevents duplication of Global symbols and reinclusion of
+**#+       fcns.h
+**#+
+**#+   STRMAX is the largest permitted string.  See also MBLOCK, DBL_STR, and
+**#+       and BLOCK_SPLIT in globalx.h which are based on STRMAX.
+**#+
+**#+   See global.h for additional data base related parameters.
+**#+
+**#+   See memsize.h for compiler build parameters.
+**#+............................................................................*/
+
+/* STR_MAX now dfined in strmax.h */
+
+#ifndef SYSPARMS_H
+#define SYSPARMS_H
+
+@cygwin@
+
+
+#include <mumpsc/strmax.h>
+#define PS @ibuf@
+#define PS1 PS+1
+
+#ifdef __APPLE__
+#define GCVT 1
+#endif
+
+#ifdef _MSC_VER
+#define MSVisualC
+#else
+#define Linux
+#endif
+
+/*** Permits SQL */
+/* #define SQL */
+
+#define ALLOW_POSTGRES @allow_pgsql@
+
+#ifndef SERVER
+#define SINGLE
+#endif
+
+//----------------------------------------------------------------------
+// enable the following if you want the interpreter to halt on all error
+//----------------------------------------------------------------------
+
+@terminate_on_error@
+
+#ifdef MSVisualC
+#define UNIX 0
+#define USYSTEM DOS
+#define DOS 2
+// #define SYSTEM DOS
+#define MSVC
+#define SINGLE
+#endif
+
+#ifdef Linux
+#define UNIX 1
+#define USYSTEM LINUX
+#define DOS 2
+// #define SYSTEM UNIX
+#endif
+
+#ifdef Solaris
+#define UNIX 1
+#define USYSTEM UNIX
+#define DOS 2
+// #define SYSTEM UNIX
+#endif
+
+#ifdef GnuDos
+#define UNIX 0
+#define USYSTEM DOS
+#define DOS 2
+// #define SYSTEM DOS
+#endif
+
+#endif

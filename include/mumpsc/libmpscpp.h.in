@@ -1,0 +1,1293 @@
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#+   
+#+     Mumps Bioinformatics Software Library
+#+     Copyright (C) 2003, 2015 by Kevin C. O'Kane  
+#+
+#+     Kevin C. O'Kane
+#+     kc.okane@gmail.com
+#+     http://threadsafebooks.com
+#+
+#+ This program is free software; you can redistribute it and/or modify
+#+ it under the terms of the GNU General Public License as published by
+#+ the Free Software Foundation; either version 2 of the License, or
+#+ (at your option) any later version.
+#+ 
+#+ This program is distributed in the hope that it will be useful,
+#+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#+ GNU General Public License for more details.
+#+ 
+#+ You should have received a copy of the GNU General Public License
+#+ along with this program; if not, write to the Free Software
+#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+#ifndef MUMPSLIB_H
+#define MUMPSLIB_H
+#define MPSCPP
+#include <iostream>
+#include <math.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string>
+#include <cctype>
+#include <set>
+#include <algorithm>
+#include <assert.h>
+#include <stdexcept>
+#include <fstream>
+#include <mumpsc/btree.h>
+#include <mumpsc/global.h>
+#include <mumpsc/arith.h>
+
+#ifdef _MDH_
+
+char * _text_function(int i) { return 0; }
+int _label_lookup(char * x) { return -1; }
+
+int (*__label_lookup)(char *) = _label_lookup;
+char* (*__text_function)(int) = _text_function;
+
+#endif
+
+using namespace std;
+
+extern int GlobalExceptionCode;
+
+#define FTELL @ftello@
+#define FSEEK @fseeko@
+
+// GlobalExceptionCode values
+
+#define UNSPECIFIED 0
+#define INVALID_CONVERSION 1
+#define GLOBAL_NOT_FOUND 2
+#define VARIABLE_NOT_FOUND 3
+#define DATA_RANGE_ERROR 4
+#define NUMERIC_RANGE 5
+#define INPUT_ERROR 6
+#define PATTERN_ERROR 7
+#define INTERPRETER_ERROR 8
+#define SYMTAB_ERROR 9
+#define INPUT_LENGTH 10
+
+#define BIGLONG long
+
+// Some older compilers do not have log2() function.
+// Use log() instead.
+
+#define LOG2 @log2@
+
+class mstring;
+class global;
+class indirect;
+class MumpsGlobalException;
+
+#define $test __test()
+#define $perl __perl
+#define $SymGet __symget
+#define $SymPut __symput
+#define $lock __lock
+#define $name __name
+#define $pattern __pattern
+#define $query __query
+#define $queryX __queryX
+
+#if defined(__STDC_HOSTED__) 
+#define char_global(name,...) (name.MakeGlobal(0,#name,#__VA_ARGS__,__VA_ARGS__ ))
+#define int_global(name,...) (name.MakeGlobal(1,#name,#__VA_ARGS__,__VA_ARGS__ ))
+#define Xecute(exp) (xecute(__command__(#exp)))
+#define write(...) (svPtr->tpx=WriteMumps1(svPtr,#__VA_ARGS__))
+#endif
+
+#if !defined(__STDC_HOSTED__) 
+#define write(x) (svPtr->tpx=WriteMumps1(svPtr,#x))
+#endif
+
+void relationalXnext ( unsigned char * tmp1, unsigned char * right, struct MSV * svPtr);
+
+#define BTREE(code,key,data) (Mglobal(code,key,data,svPtr))
+#define get_global(ref,rslt) (svPtr->tpx=Mglobal(RETRIEVE,(unsigned char *)ref,(unsigned char *)rslt,svPtr),rslt)
+#define set_global(ref,rslt) (svPtr->tpx=Mglobal(STORE,(unsigned char *)ref,(unsigned char *)rslt,svPtr),rslt);
+#define GlobalClose Mglobal(CLOSE,(unsigned char *)"",(unsigned char *)"",svPtr)
+#define ltoa(out,in) (sprintf(out,"%ld",in),out)
+#define ftoa(out,in) (sprintf(out,"%f",in),out)
+#define string(x) char x[STR_MAX]
+#define command(ref) __command__(#ref)
+
+int SQL_Disconnect();
+int SQL_Connect(char *);
+int SQL_Connect(string);
+int SQL_Connect(mstring);
+
+int SQL_Format(mstring);
+int SQL_Format(string);
+int SQL_Format(char *);
+int SQL_Format();
+
+int SQL_Command(mstring);
+int SQL_Command(string);
+int SQL_Command(char *);
+mstring SQL_Table();
+mstring SQL_Table(mstring, int=10);
+mstring SQL_Table(string, int=10);
+mstring SQL_Table(char *, int=10);
+mstring SQL_Message();
+bool SQL_Open();
+bool SQL_Native();
+bool SQL_Msql();
+bool SQL_Postgres();
+
+bool Ztell(FILE *, mstring&);
+bool Ztell(FILE *, global&);
+bool Zseek(FILE *, mstring &);
+bool Zseek(FILE *, global &);
+
+mstring SymGet(mstring);
+mstring SymGet(char *);
+mstring SymGet(global);
+
+bool SymPut(mstring &, mstring &);
+bool SymPut(mstring &, global &);
+bool SymPut (mstring &, char *);
+
+bool SymPut (char *, mstring &);
+bool SymPut (char *, global &);
+bool SymPut (char *, char *);
+
+bool SymPut (global &, char *);
+bool SymPut (global &, mstring &);
+bool SymPut (global &, global &);
+
+mstring TokenInit(mstring &);
+mstring Token();
+
+void __symput(const char *,const char *);
+
+#define __query(str) (__Query(str,0,svPtr))
+#define __queryX(str,pat) (__Query(str,pat,svPtr))
+#define __name(ref) ref.Name()
+
+int Perl(mstring &, mstring &);
+int Perl(mstring &, char *);
+
+int perl_pm(const char *, const char *, const int, struct MSV *);
+
+int wstem(char *, int);
+extern struct MSV * svPtr; 
+void GlobalQuery(unsigned char *, unsigned char *, unsigned char *, struct MSV *);
+int Interpret(const char *,struct MSV *);
+void _piece(unsigned char *,unsigned char *,unsigned char *,unsigned char *,
+	unsigned char *,int,unsigned char *,struct MSV *);
+char * cleanLocks(char *);
+char * makeLock(char *,char *, char *, char, char *);
+
+
+void _extract(unsigned char *, unsigned char *, unsigned char *, unsigned char *);
+
+extern "C" void bmg_setup(char *, int);
+extern "C" int bmg_search(char *, int, int (*)(char*,int));
+extern "C" int bmg_fullsearch(char *, char *);
+extern "C" int bmg_fsearch(int, int (*)(char*,int));
+
+int bmg_fullsearch(string, string);
+int bmg_fullsearch(mstring, mstring);
+int bmg_fullsearch(mstring, global);
+int bmg_fullsearch(string, global);
+int bmg_fullsearch(char *, global);
+
+int pmw(char *, char *, struct MSV *);
+int pmw(string, char *, struct MSV *);
+int pmw(char *, string, struct MSV *);
+int pmw(string, string, struct MSV *);
+int pmw(mstring, mstring, struct MSV *);
+int pm(const unsigned char *, const unsigned char *, struct MSV *);
+void _find(unsigned char *, unsigned char *, unsigned char *, unsigned char *);
+void _horolog(unsigned char *);
+int stem(char *, int); // stem(word,word_length) returns new length, mods word.
+int perlcpp(char *, const char *, const char *, struct MSV *);
+void LocalName(unsigned char *, unsigned char *, unsigned char *, struct MSV *);
+
+int nodash(char *);
+int Score(char, char);
+int prnt(int, char *, char *, int, int, int); 
+void init();
+int Cost(char *, char *, int , int );
+int sw(char *, char *, int=0, int=0, int=-1, int=-1, int=-2);
+int sw(mstring, mstring, int=0, int=0, int=-1, int=-1, int=-2);
+int sw(string, string, int=0, int=0, int=-1, int=-1, int=-2);
+
+mstring Stem(mstring &);
+
+void Dump(mstring &);
+void Dump(string &);
+void Dump(char *);
+
+void Restore (mstring &);
+void Restore(string &);
+void Restore(char *);
+
+bool ZSeek(FILE *, mstring &);
+bool ZTell(FILE *, mstring &);
+
+bool ZSeek(FILE *, global &);
+bool ZTell(FILE *, global &);
+
+string stem(string &);
+mstring stem(mstring &);
+char * stem(char *);
+char * chash(const char *);
+unsigned long lhash(const char *);
+char * __Query(char *,char, struct MSV *);
+void KiLL(char *, struct MSV *);
+int RunMumps(struct MSV *, const char *, char *, ...);
+int xecute(char *);
+int xecute(string);
+int xecute(mstring);
+int __test();
+char * Shred(char *, int);
+mstring Shred(mstring, int);
+string Shred(string, int);
+char * ShredQuery(char *, int);
+mstring ShredQuery(mstring, int);
+string ShredQuery(string, int);
+
+char * Justify(const char *, struct MSV *, char *, ...);
+char * Justify(global, struct MSV *, char *, ...);
+char * Justify(string, struct MSV *, char *, ...);
+mstring Justify(mstring, struct MSV *, char *, ...);
+int WriteMumps1(struct MSV *,char *);
+void CleanLocks(void);
+void CleanAllLocks(void);
+double HitRatio(void);
+mstring EncodeHTML(char *);
+mstring EncodeHTML(mstring &);
+char * __command__(char *);
+
+mstring mcvt(char *);
+mstring mcvt(long);
+mstring mcvt(float);
+mstring mcvt(double);
+mstring mcvt(int);
+
+char * cvt(long);
+char * cvt(float);
+char * cvt(double);
+char * cvt(int);
+
+int GlobalSet(string,string);
+int GlobalSet(mstring,mstring);
+int GlobalSet(char *,string);
+int GlobalSet(char *,mstring);
+int GlobalSet(string,char *);
+int GlobalSet(mstring,char *);
+int GlobalSet(char*,char*);
+char * GlobalGet(char *);
+string GlobalGet(string);
+mstring GlobalGet(mstring);
+char * GlobalOrder(char *, int);
+string GlobalOrder(string, int);
+mstring GlobalOrder(mstring, int);
+int GlobalData(char *);
+int GlobalData(string);
+int GlobalData(mstring);
+void Transpose(char *, char *);
+void Transpose(string, string);
+void Transpose(mstring, mstring);
+void Multiply(string, string, string);
+
+class MumpsGlobalException  {
+public:
+      MumpsGlobalException() : message ((char *) "Global reference not found") {};
+      char *what() { return message; }
+private:
+      char * message;
+      };
+
+class indirect {
+      public:
+            friend indirect operator*(string);
+             indirect operator=(string);
+            string reference;
+      private:
+            string xreference;
+      };
+
+int Qlength(mstring &);
+int Qlength(char *);
+mstring Query(mstring &);
+mstring Query(const char *);
+mstring Qsubscript(mstring &, mstring &);
+mstring Qsubscript(mstring &, int);
+mstring Qsubscript(const char *, int);
+
+
+class global {
+      public:
+            global(const char *);
+            global MakeGlobal(int, char * gblnme, char * key,...);
+
+	mstring Translate(mstring);
+
+	mstring Concat(string);
+	mstring Concat(global);
+	mstring Concat(char *);
+	mstring Concat(mstring);
+	mstring Concat(int);
+	mstring Concat(long);
+	mstring Concat(double);
+
+	mstring Extract(int=1, int=-1);
+        int Find(mstring, int=1);
+        int Find(global, int=1);
+        int Find(char *, int=1);
+        int Ascii(int start);
+        int Ascii();
+	mstring Query();
+	int Qlength();
+	mstring Reverse();
+	mstring Qsubscript(int);
+	int Pattern(mstring &);
+	int Pattern(string);
+	int Pattern(global);
+        int Pattern(const char *);
+        mstring Justify(int,int=-1);
+	int Length();
+	int Length(char *);
+	int Length(mstring);
+	int Length(global);
+	int Length(string);
+        mstring Piece(const char *, int, int=-1); 
+        mstring Piece(mstring &, int, int=-1); 
+        mstring Piece(string, int, int=-1); 
+        mstring Piece(global, int, int=-1); 
+	mstring Fnumber(mstring, mstring);
+	mstring Fnumber(mstring);
+        bool ReadLine();
+        bool ReadLine(FILE *);
+        bool ReadLine(istream &);
+        friend class mstring;
+
+            void Flush();
+            void Transpose(global);
+            void Multiply(global, global);
+            void Centroid(global);
+            double Sum();
+            double Sim1(global);
+            double Cosine(global);
+            double Jaccard(global);
+            double Dice(global);
+            void TermCorrelate(global);
+            void DocCorrelate(global, string="Cosine", double=0.8);
+            void DocCorrelate(global, char *, double=0.8);
+            void DocCorrelate(global, mstring, double=0.8);
+            double Avg();
+            void IDF(double);
+            long Count();
+            double Max();
+            double Min();
+
+            void TreePrint(int=1, const char=' ');
+            void TablePrint(int=1, const char=' ');
+
+
+	mstring operator+() ; // unary plus
+	mstring operator-() ; // unary minus
+
+	mstring operator&(mstring);
+	mstring operator&(char *);
+	mstring operator&(global);
+	mstring operator&(string);
+	mstring operator&(int);
+	mstring operator&(long);
+	mstring operator&(double);
+
+            global & operator=(const char *);
+            global & operator=(int);
+            global & operator=(double);
+            global & operator=(string);
+            global & operator=(global);
+            global & operator=(unsigned int);
+            global & operator=(float);
+            global & operator=(short);
+            global & operator=(unsigned short);
+            global & operator=(long);
+            global & operator=(unsigned long);
+            global & operator=(mstring);
+
+            global & operator<<(char *);
+            global & operator<<(int);
+            global & operator<<(unsigned int);
+            global & operator<<(short);
+            global & operator<<(unsigned short);
+            global & operator<<(long);
+            global & operator<<(unsigned long);
+            global & operator<<(float);
+            global & operator<<(double);
+            global & operator<<(string);
+            global & operator<<(global);
+            global & operator<<(mstring);
+
+            global & operator()(indirect);
+
+            global & operator()();
+            global & operator()(string);
+            global & operator()(string,string);
+            global & operator()(string,string,string);
+            global & operator()(string,string,string,string);
+            global & operator()(string,string,string,string,string);
+            global & operator()(string,string,string,string,string,string);
+            global & operator()(string,string,string,string,string,string,string);
+            global & operator()(string,string,string,string,string,string,string,string);
+            global & operator()(string,string,string,string,string,string,string,string,string);
+            global & operator()(string,string,string,string,string,string,string,string,string,string);
+
+            global & operator()(mstring);
+            global & operator()(mstring,mstring);
+            global & operator()(mstring,mstring,mstring);
+            global & operator()(mstring,mstring,mstring,mstring);
+            global & operator()(mstring,mstring,mstring,mstring,mstring);
+            global & operator()(mstring,mstring,mstring,mstring,mstring,mstring);
+            global & operator()(mstring,mstring,mstring,mstring,mstring,mstring,mstring);
+            global & operator()(mstring,mstring,mstring,mstring,mstring,mstring,mstring,mstring);
+            global & operator()(mstring,mstring,mstring,mstring,mstring,mstring,mstring,mstring,mstring);
+            global & operator()(mstring,mstring,mstring,mstring,mstring,mstring,mstring,mstring,mstring,mstring);
+
+global & operator() (const long int a);
+            global & operator()(const char *);
+            global & operator()(const char *,const char *);
+            global & operator()(const char *,const char *,const char *);
+            global & operator()(const char *,const char *,const char *,const char *);
+            global & operator()(const char *,const char *,const char *,const char *,const char *);
+            global & operator()(const char *,const char *,const char *,const char *,const char *,
+		const char *);
+            global & operator()(const char *,const char *,const char *,const char *,const char *,
+		const char *,const char *);
+            global & operator()(const char *,const char *,const char *,const char *,const char *,
+		const char *,const char *,const char *);
+            global & operator()(const char *,const char *,const char *,const char *,const char *,
+		const char *,const char *,const char *,const char *);
+            global & operator()(const char *,const char *,const char *,const char *,const char *,
+		const char *,const char *,const char *,const char *,const char *);
+
+            char * operator>>(char *);
+            int operator>>(int &);
+            unsigned int operator>>(unsigned int &);
+            long operator>>(long &);
+            unsigned long operator>>(unsigned long &);
+            short operator>>(short &);
+            unsigned short operator>>(unsigned short &);
+            float operator>>(float &);
+            double operator>>(double &);
+            string operator>>(string &);
+            mstring operator>>(mstring &);
+            global & operator>>(global);
+            friend char * __Name(global,struct MSV *);
+
+            int Int();
+            double Double();
+            char * Char(char *, int);
+            mstring Mstring();
+
+            int operator+=(int);
+            unsigned int operator+=(unsigned int);
+            short operator+=(short);
+            unsigned short operator+=(unsigned short);
+            long operator+=(long);
+            unsigned long operator+=(unsigned long);
+            float operator+=(float);
+            double operator+=(double);
+
+            friend int operator+=(int &,global);
+            friend unsigned int operator+=(unsigned int,global);
+            friend short operator+=(short,global);
+            friend unsigned short operator+=(unsigned short,global);
+            friend long operator+=(long,global);
+            friend unsigned long operator+=(unsigned long,global);
+            friend float operator+=(float,global);
+            friend double operator+=(double,global);
+
+            friend int operator-=(int &,global);
+            friend unsigned int operator-=(unsigned int,global);
+            friend short operator-=(short,global);
+            friend unsigned short operator-=(unsigned short,global);
+            friend long operator-=(long,global);
+            friend unsigned long operator-=(unsigned long,global);
+            friend float operator-=(float,global);
+            friend double operator-=(double,global);
+
+            friend int operator*=(int &,global);
+            friend unsigned int operator*=(unsigned int,global);
+            friend short operator*=(short,global);
+            friend unsigned short operator*=(unsigned short,global);
+            friend long operator*=(long,global);
+            friend unsigned long operator*=(unsigned long,global);
+            friend float operator*=(float,global);
+            friend double operator*=(double,global);
+
+            friend int operator/=(int &,global);
+            friend unsigned int operator/=(unsigned int,global);
+            friend short operator/=(short,global);
+            friend unsigned short operator/=(unsigned short,global);
+            friend long operator/=(long,global);
+            friend unsigned long operator/=(unsigned long,global);
+            friend float operator/=(float,global);
+            friend double operator/=(double,global);
+
+            int operator-=(int);
+            unsigned int operator-=(unsigned int);
+            short operator-=(short);
+            unsigned short operator-=(unsigned short);
+            long operator-=(long);
+            unsigned long operator-=(unsigned long);
+            float operator-=(float);
+            double operator-=(double);
+
+            int operator*=(int);
+            unsigned int operator*=(unsigned int);
+            short operator*=(short);
+            unsigned short operator*=(unsigned short);
+            long operator*=(long);
+            unsigned long operator*=(unsigned long);
+            float operator*=(float);
+            double operator*=(double);
+
+            int operator/=(int);
+            unsigned int operator/=(unsigned int);
+            short operator/=(short);
+            unsigned short operator/=(unsigned short);
+            long operator/=(long);
+            unsigned long operator/=(unsigned long);
+            float operator/=(float);
+            double operator/=(double);
+
+            int operator+(int);
+            friend int operator+(int,global);
+
+            unsigned int operator+(unsigned int);
+            friend unsigned int operator+(unsigned int,global);
+
+            int operator-(int);
+            friend int operator-(int,global);
+
+            unsigned int operator-(unsigned int);
+            friend unsigned int operator-(unsigned int,global);
+
+            int operator*(int);
+            friend int operator*(int,global);
+
+            unsigned int operator*(unsigned int);
+            friend unsigned int operator*(unsigned int,global);
+
+            int operator/(int);
+            friend int operator/(int,global);
+
+            unsigned int operator/(unsigned int);
+            friend unsigned int operator/(unsigned int,global);
+
+            long operator+(long);
+            friend long operator+(long,global);
+
+            unsigned long operator+(unsigned long);
+            friend unsigned long operator+(unsigned long,global);
+
+            long operator-(long);
+            friend long operator-(long,global);
+
+            unsigned long operator-(unsigned long);
+            friend unsigned long operator-(unsigned long,global);
+
+            long operator*(long);
+            friend long operator*(long,global);
+
+            unsigned long operator*(unsigned long);
+            friend unsigned long operator*(unsigned long,global);
+
+            long operator/(long);
+            friend long operator/(long,global);
+
+            unsigned long operator/(unsigned long);
+            friend unsigned long operator/(unsigned long,global);
+
+            short operator+(short);
+            friend short operator+(short,global);
+
+            unsigned short operator+(unsigned short);
+            friend unsigned short operator+(unsigned short,global);
+
+            short operator-(short);
+            friend short operator-(short,global);
+
+            unsigned short operator-(unsigned short);
+            friend unsigned short operator-(unsigned short,global);
+
+            short operator*(short);
+            friend short operator*(short,global);
+
+            unsigned short operator*(unsigned short);
+            friend unsigned short operator*(unsigned short,global);
+
+            short operator/(short);
+            friend short operator/(short,global);
+
+            unsigned short operator/(unsigned short);
+            friend unsigned short operator/(unsigned short,global);
+
+            float operator+(float);
+            friend float operator+(float,global);
+
+            float operator-(float);
+            friend float operator-(float,global);
+
+            float operator*(float);
+            friend float operator*(float,global);
+
+            float operator/(float);
+            friend float operator/(float,global);
+
+            double operator+(double);
+            friend double operator+(double,global);
+
+            double operator-(double);
+            friend double operator-(double,global);
+
+            double operator*(double);
+            friend double operator*(double,global);
+
+            double operator/(double);
+            friend double operator/(double,global);
+
+            double operator+(global);
+            double operator-(global);
+            double operator*(global);
+            double operator/(global);
+
+            double operator++();
+            double operator--();
+
+            double operator++(int);
+            double operator--(int);
+
+            int operator>(global);
+            int operator>(int);
+            int operator>(unsigned int);
+            int operator>(long);
+            int operator>(unsigned long);
+            int operator>(short);
+            int operator>(unsigned short);
+            int operator>(float);
+            int operator>(double);
+            int operator>(char *);
+            int operator>(string);
+
+            friend int operator>(int,global);
+            friend int operator>(unsigned int,global);
+            friend int operator>(long,global);
+            friend int operator>(unsigned long,global);
+            friend int operator>(short,global);
+            friend int operator>(unsigned short,global);
+            friend int operator>(float,global);
+            friend int operator>(double,global);
+            friend int operator>(char *,global);
+            friend int operator>(string,global);
+
+            int operator<(global);
+            int operator<(int);
+            int operator<(unsigned int);
+            int operator<(long);
+            int operator<(unsigned long);
+            int operator<(short);
+            int operator<(unsigned short);
+            int operator<(float);
+            int operator<(double);
+            int operator<(char *);
+            int operator<(string);
+            int operator<(mstring);
+
+            friend int operator<(int,global);
+            friend int operator<(unsigned int,global);
+            friend int operator<(long,global);
+            friend int operator<(unsigned long,global);
+            friend int operator<(short,global);
+            friend int operator<(unsigned short,global);
+            friend int operator<(float,global);
+            friend int operator<(double,global);
+            friend int operator<(char *,global);
+            friend int operator<(string,global);
+            friend int operator<(mstring,global);
+
+            int operator<=(global);
+            int operator<=(int);
+            int operator<=(unsigned int);
+            int operator<=(long);
+            int operator<=(unsigned long);
+            int operator<=(short);
+            int operator<=(unsigned short);
+            int operator<=(float);
+            int operator<=(double);
+            int operator<=(char *);
+            int operator<=(string);
+
+            friend int operator<=(int,global);
+            friend int operator<=(unsigned int,global);
+            friend int operator<=(long,global);
+            friend int operator<=(unsigned long,global);
+            friend int operator<=(short,global);
+            friend int operator<=(unsigned short,global);
+            friend int operator<=(float,global);
+            friend int operator<=(double,global);
+            friend int operator<=(char *,global);
+            friend int operator<=(string,global);
+
+            int operator>=(global);
+            int operator>=(int);
+            int operator>=(unsigned int);
+            int operator>=(long);
+            int operator>=(unsigned long);
+            int operator>=(short);
+            int operator>=(unsigned short);
+            int operator>=(float);
+            int operator>=(double);
+            int operator>=(char *);
+            int operator>=(string);
+
+            friend int operator>=(int,global);
+            friend int operator>=(unsigned int,global);
+            friend int operator>=(long,global);
+            friend int operator>=(unsigned long,global);
+            friend int operator>=(short,global);
+            friend int operator>=(unsigned short,global);
+            friend int operator>=(float,global);
+            friend int operator>=(double,global);
+            friend int operator>=(char *,global);
+            friend int operator>=(string,global);
+
+            int operator==(global);
+            int operator==(int);
+            int operator==(unsigned int);
+            int operator==(long);
+            int operator==(unsigned long);
+            int operator==(short);
+            int operator==(unsigned short);
+            int operator==(float);
+            int operator==(double);
+            int operator==(char *);
+            int operator==(string);
+
+            friend int operator==(int,global);
+            friend int operator==(unsigned int,global);
+            friend int operator==(long,global);
+            friend int operator==(unsigned long,global);
+            friend int operator==(short,global);
+            friend int operator==(unsigned short,global);
+            friend int operator==(float,global);
+            friend int operator==(double,global);
+            friend int operator==(char *,global);
+            friend int operator==(string,global);
+
+            int operator!=(global);
+            int operator!=(int);
+            int operator!=(unsigned int);
+            int operator!=(long);
+            int operator!=(unsigned long);
+            int operator!=(short);
+            int operator!=(unsigned short);
+            int operator!=(float);
+            int operator!=(double);
+            int operator!=(char *);
+            int operator!=(string);
+
+            friend int operator!=(int,global);
+            friend int operator!=(unsigned int,global);
+            friend int operator!=(long,global);
+            friend int operator!=(unsigned long,global);
+            friend int operator!=(short,global);
+            friend int operator!=(unsigned short,global);
+            friend int operator!=(float,global);
+            friend int operator!=(double,global);
+            friend int operator!=(char *,global);
+            friend int operator!=(string,global);
+
+            // casts
+
+            operator char*() ;
+            operator int();
+            operator unsigned int();
+            operator short();
+            operator unsigned short();
+            operator long();
+            operator unsigned long();
+            operator float();
+            operator double();
+            operator mstring();
+            
+            friend ostream & operator<<(ostream&,global);
+            char * get();
+            char * Set (char *);
+            long   Set (long);
+            int    Set (int);
+            double Set (double);
+            string Set (string);
+            char * Get ();
+            char * Get (char *);
+            long   Get (long *);
+            double Get (double *);
+            string Get (string &);
+            mstring Order(int=1);
+            char * C_Order(int=1);
+            int    Order_Next(char *);
+            int    Order_Prior(char *);
+            int    Data();
+            mstring Name();
+            int Merge(global);
+            int Lock();
+            int UnLock();
+            void Kill ();
+            char Gtmp[STR_MAX];
+            char tmp[STR_MAX];
+      private:
+            static int Eflg;
+            int ArgCount;
+            char myname[256];
+            char ref[STR_MAX];
+            // char Sref[STR_MAX];
+            string Sref;
+            //char Sname[STR_MAX];
+            string Sname;
+      };
+
+class Hash {
+ public:
+      Hash(string="hash",long=100000,string="new");
+      ~Hash();
+      string operator=(string);
+      mstring operator=(mstring);
+      Hash & operator()(string);
+      Hash & operator()(mstring);
+      operator const char*();
+ private:
+      string key;
+      string data;
+      size_t size;
+      FILE * hashkey;
+      FILE * hashdata;
+      string ref;
+      };
+
+typedef set < string, less<string> > StopList;
+void StopInit(string);
+void StopInit(mstring);
+void StopInit(char *);
+int StopLookup(mstring);
+int StopLookup(string);
+int StopLookup(char *);
+
+#define SYNMAX 20000
+
+struct Syn {
+      char *word;
+      char *alias;
+      };
+
+char * SYN(char *);
+mstring SYN(mstring);
+string SYN(string);
+int SynInit(string);
+int SynInit(mstring);
+int SynInit(char *);
+
+mstring Horolog();
+mstring ScanAlnum(FILE *, int min=3, int max=25);
+mstring ScanAlnum(istream, int min=3, int max=25);
+
+class mstring {
+  public:
+      mstring();
+      mstring(const char *);
+      mstring(long);
+      mstring(int);
+      mstring(double);
+      mstring(float);
+      mstring(char);
+      mstring(const mstring &);
+      mstring(const string &);
+
+      friend class global;
+
+      const char * c_str();
+      const string s_str();
+
+      friend mstring Hash::operator=(mstring);
+      friend mstring global::Piece(mstring &, int, int=-1); 
+      friend mstring SQL_Table(mstring,int);
+
+      mstring Eval();
+
+      mstring Translate(mstring);
+      int replace(mstring,mstring); // pattern, replacement
+      int decorate(mstring,mstring,mstring); // pattern, prefix, suffix
+      int ends(mstring); // pattern
+      int begins(mstring); // pattern
+
+	void Assign(char *);
+	void Assign(global);
+	void Assign(mstring);
+	void Assign(string);
+	void Assign(int);
+        void Assign(long);
+        void Assign(double);
+
+      friend int SQL_Connect(mstring);
+      friend int SQL_Format(mstring);
+      friend int SQL_Command(mstring);
+
+	mstring Concat(char *);
+	mstring Concat(global);
+	mstring Concat(mstring);
+	mstring Concat(string);
+	mstring Concat(int);
+        mstring Concat(long);
+        mstring Concat(double);
+
+	mstring Reverse();
+        bool ReadLine();
+        bool ReadLine(FILE *);
+        
+	bool ReadLine(istream &);
+        operator int();
+        operator float();
+        operator double();
+        operator char();
+        operator short();
+        operator long();
+        operator unsigned long();
+        operator unsigned int();
+        operator unsigned char();
+        operator unsigned short();
+
+        int Pattern(mstring &);
+        int Pattern(string);
+        int Pattern(global);
+        int Pattern(const char *);
+
+	mstring Query();
+	int Qlength();
+	mstring Qsubscript(int);
+	mstring FixGblRef();
+
+        mstring Justify(int,int=-1);
+
+	mstring Fnumber(mstring, mstring);
+	mstring Fnumber(mstring);
+
+        int Length(mstring);
+        int Length(global);
+        int Length(string);
+        int Length(char *);
+        int Length();
+
+        int Ascii(int start);
+        int Ascii();
+
+        mstring Extract(int=1, int=-1);
+
+        int Find(const char *, int=1);
+        int Find(mstring, int=1);
+        int Find(global, int=1);
+
+        mstring Piece(const char *, int, int=-1); 
+        mstring Piece(mstring &, int, int=-1); 
+        mstring Piece(string, int, int=-1); 
+        mstring Piece(global, int, int=-1); 
+
+	mstring operator&(mstring);
+	mstring operator&(char *);
+	mstring operator&(global);
+	mstring operator&(string);
+	mstring operator&(int);
+	mstring operator&(long);
+	mstring operator&(double);
+
+      mstring & operator[](mstring);
+      mstring & operator[](int);
+      mstring & operator[](const char *);
+      mstring & operator[](string);
+
+      mstring operator^=(int);
+      mstring operator^=(long);
+      mstring operator^=(double);
+      mstring operator^=(float);
+      mstring operator^=(string);
+      mstring operator^=(const char *);
+      mstring operator^=(global);
+
+      mstring operator+=(mstring);
+      mstring operator+=(int);
+      mstring operator+=(long);
+      mstring operator+=(double);
+      mstring operator+=(float);
+      mstring operator+=(string);
+      mstring operator+=(const char *);
+      mstring operator+=(global);
+
+      mstring operator-=(mstring);
+      mstring operator-=(int);
+      mstring operator-=(long);
+      mstring operator-=(double);
+      mstring operator-=(float);
+      mstring operator-=(string);
+      mstring operator-=(const char *);
+      mstring operator-=(global);
+
+      mstring operator*=(mstring);
+      mstring operator*=(int);
+      mstring operator*=(long);
+      mstring operator*=(double);
+      mstring operator*=(float);
+      mstring operator*=(string);
+      mstring operator*=(const char *);
+      mstring operator*=(global);
+
+      mstring operator/=(mstring);
+      mstring operator/=(int);
+      mstring operator/=(long);
+      mstring operator/=(double);
+      mstring operator/=(float);
+      mstring operator/=(string);
+      mstring operator/=(const char *);
+      mstring operator/=(global);
+
+      mstring operator%=(mstring);
+      mstring operator%=(int);
+      mstring operator%=(long);
+      mstring operator%=(string);
+      mstring operator%=(const char *);
+      mstring operator%=(global);
+
+      mstring operator=(int);
+      mstring operator=(long);
+      mstring operator=(double);
+      mstring operator=(float);
+      mstring operator=(string);
+      mstring operator=(const char *);
+      mstring operator=(mstring);
+      mstring operator=(global);
+
+      mstring operator+(int);
+      mstring operator+(long);
+      mstring operator+(double);
+      mstring operator+(float);
+      mstring operator+(mstring);
+      mstring operator+(string);
+      mstring operator+(const char *);
+      mstring operator+(char *);
+      mstring operator+(global);
+
+      mstring operator||(mstring);
+      mstring operator||(string);
+      mstring operator||(global);
+      mstring operator||(const char *);
+      mstring operator||(int);
+      mstring operator||(long);
+      mstring operator||(float);
+      mstring operator||(double);
+
+      friend mstring operator||(string,mstring);
+      friend mstring operator||(global,mstring);
+      friend mstring operator||(const char *,mstring);
+      friend mstring operator||(int,mstring);
+      friend mstring operator||(long,mstring);
+      friend mstring operator||(float,mstring);
+      friend mstring operator||(double,mstring);
+
+      mstring operator-(int);
+      mstring operator-(long);
+      mstring operator-(double);
+      mstring operator-(float);
+      mstring operator-(mstring);
+      mstring operator-(string);
+      mstring operator-(const char *);
+      mstring operator-(char *);
+      mstring operator-(global);
+
+      mstring operator*(int);
+      mstring operator*(long);
+      mstring operator*(double);
+      mstring operator*(float);
+      mstring operator*(mstring);
+      mstring operator*(string);
+      mstring operator*(global);
+      mstring operator*(const char *);
+
+      mstring operator/(int);
+      mstring operator/(long);
+      mstring operator/(double);
+      mstring operator/(float);
+      mstring operator/(mstring);
+      mstring operator/(string);
+      mstring operator/(global);
+      mstring operator/(const char *);
+
+      mstring operator%(long);
+      mstring operator%(int);
+      mstring operator%(mstring);
+      mstring operator%(string);
+      mstring operator%(const char *);
+      mstring operator%(global);
+
+      mstring operator++();
+      mstring operator--();
+      mstring operator++(int);
+      mstring operator--(int);
+
+      mstring operator!(); // unary
+      mstring operator+(); // unary
+      mstring operator-(); // unary
+
+      friend mstring operator%(int,mstring);
+      friend mstring operator%(long,mstring);
+      friend mstring operator%(string,mstring);
+      friend mstring operator%(global,mstring);
+      friend mstring operator%(const char *,mstring);
+
+      friend mstring operator+(int,mstring);
+      friend mstring operator+(long,mstring);
+      friend mstring operator+(double,mstring);
+      friend mstring operator+(float,mstring);
+      friend mstring operator+(string,mstring);
+      friend mstring operator+(global,mstring);
+      friend mstring operator+(const char *,mstring);
+      friend mstring operator+(char *,mstring);
+
+      friend mstring operator-(int,mstring);
+      friend mstring operator-(long,mstring);
+      friend mstring operator-(double,mstring);
+      friend mstring operator-(float,mstring);
+      friend mstring operator-(string,mstring);
+      friend mstring operator-(global,mstring);
+      friend mstring operator-(const char *,mstring);
+      friend mstring operator-(char *,mstring);
+
+      friend mstring operator*(int,mstring);
+      friend mstring operator*(long,mstring);
+      friend mstring operator*(double,mstring);
+      friend mstring operator*(float,mstring);
+      friend mstring operator*(string,mstring);
+      friend mstring operator*(global,mstring);
+      friend mstring operator*(const char *,mstring);
+
+      friend mstring operator/(int,mstring);
+      friend mstring operator/(long,mstring);
+      friend mstring operator/(double,mstring);
+      friend mstring operator/(float,mstring);
+      friend mstring operator/(string,mstring);
+      friend mstring operator/(global,mstring);
+      friend mstring operator/(const char *,mstring);
+
+      friend ostream & operator<<(ostream &, mstring);
+      friend istream & operator>>(istream &, mstring &);
+
+      bool operator<(int);
+      bool operator<(long);
+      bool operator<(double);
+      bool operator<(float);
+      bool operator<(char *);
+      bool operator<(const char *);
+      bool operator<(string);
+      bool operator<(global);
+      bool operator<(mstring);
+
+      bool operator>(int);
+      bool operator>(long);
+      bool operator>(double);
+      bool operator>(float);
+      bool operator>(char *);
+      bool operator>(const char *);
+      bool operator>(string);
+      bool operator>(global);
+      bool operator>(mstring);
+
+      bool operator>=(int);
+      bool operator>=(long);
+      bool operator>=(double);
+      bool operator>=(float);
+      bool operator>=(char *);
+      bool operator>=(const char *);
+      bool operator>=(string);
+      bool operator>=(global);
+      bool operator>=(mstring);
+
+      bool operator<=(int);
+      bool operator<=(long);
+      bool operator<=(double);
+      bool operator<=(float);
+      bool operator<=(char *);
+      bool operator<=(const char *);
+      bool operator<=(string);
+      bool operator<=(global);
+      bool operator<=(mstring);
+
+      bool operator==(int);
+      bool operator==(long);
+      bool operator==(double);
+      bool operator==(float);
+      bool operator==(const char *);
+      bool operator==(char *);
+      bool operator==(string);
+      bool operator==(global);
+      bool operator==(mstring);
+
+      bool operator!=(int);
+      bool operator!=(long);
+      bool operator!=(double);
+      bool operator!=(float);
+      bool operator!=(char *);
+      bool operator!=(const char *);
+      bool operator!=(string);
+      bool operator!=(global);
+      bool operator!=(mstring);
+
+      operator const char * ();
+
+  private:
+      string data;
+      string name;
+      };
+
+unsigned char * VariableNotFound(long);
+void strcatx(unsigned char *, unsigned char *);
+void ErrorMessage(const char *, long);
+char * sym_(int, unsigned char *, unsigned char *, struct MSV *);
+void zfcn(unsigned char *, unsigned char *, struct MSV *);
+int numcomp(unsigned char *, unsigned char *);
+int numcomp1(unsigned char *, long);
+void mult1(const char *, long, char *);
+char * add1(char *, long, char *);
+// void GlobalOrder(unsigned char *, unsigned char *, unsigned char *, struct MSV *);
+void GlobalQS(unsigned char *, unsigned char *, unsigned char *, struct MSV *);
+int _SymFree(int,  struct MSV * );
+void LocalData(unsigned char *, unsigned char *, struct MSV *);
+void LocalOrder(unsigned char *, unsigned char *, unsigned char *, struct MSV *);
+void LocalQS(unsigned char *, unsigned char *, unsigned char *, struct MSV *);
+void LocalNext(unsigned char *, unsigned char *, struct MSV *);
+void LocalGet(unsigned char *, unsigned char *, unsigned char *, struct MSV *);
+void GlobalNext(unsigned char *, unsigned char *, struct MSV *);
+void GlobalGet(unsigned char *, unsigned char *, unsigned char *, struct MSV *);
+void GlobalData(unsigned char *, unsigned char *, struct MSV *);
+int Merge(unsigned char *, unsigned char *, struct MSV *);
+int getstr1(FILE * opnfile, unsigned char []);
+void expx(const char *, const char *, char *);
+void divi(const char *, const char *, char *);
+void _justify(unsigned char *, unsigned char *, unsigned char *, unsigned char *);
+void fcn(MSV *);
+void _select(unsigned char *, unsigned char *, unsigned char *,
+             unsigned char *in3, unsigned char *in4, unsigned char *in5,
+             unsigned char *in6, unsigned char *in7, unsigned char *in8,
+             unsigned char *in9, unsigned char *in10, unsigned char *in11,
+             unsigned char *in12, unsigned char *in13, unsigned char *in14,
+             unsigned char *in15, unsigned char *in16, unsigned char *in17,
+             unsigned char *in18, unsigned char *in19,
+             unsigned char *in20, struct MSV * svPtr);
+
+#endif

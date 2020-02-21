@@ -1,0 +1,4 @@
+#ifndef STRMAX_H
+#define STRMAX_H
+#define STR_MAX @str_max@
+#endif

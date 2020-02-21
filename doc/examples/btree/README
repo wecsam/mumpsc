@@ -1,0 +1,14 @@
+June 6, 2012
+
+This directory contains test and example routines for access to the
+Mumps btree routines from C++ programs.
+
+To compile, use the following example:
+
+mumpsc btree1.cpp
+
+The resulting executable will be btree1
+
+The bash script file checkout will run all the tests. The file
+checkout.bat is for Windows systems.
+

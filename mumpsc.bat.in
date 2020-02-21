@@ -1,0 +1,5 @@
+REM
+REM Compile mumps programs 
+REM
+\@dosprefix@\bin\mumps2c %1.mps
+gcc -O3 %1.c -o %1.exe -I \@dosprefix@\include -lm -L\@dosprefix@\lib -lmumps -lmpsglobal_native -lpcre

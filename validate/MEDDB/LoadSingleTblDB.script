@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# load the data into a single (mumps) table
+
+loadlabs1.mps < labs
+loadlabtab1.mps < labtab
+loadprobtab1.mps < probtab
+loadprobs1.mps < problems
+loadmedtab1.mps < medtab
+loadmedadmin1.mps < medadmin
+loadpatientid1.mps < patientid
+loadvitals1.mps < vitals

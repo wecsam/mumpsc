@@ -1,0 +1,1050 @@
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#+
+#+     Mumps Bioinformatics Software Library
+#+     Copyright (C) 2003, 2004, 2008, 2015, 2016, 2017 by Kevin C. O'Kane
+#+
+#+     Kevin C. O'Kane
+#+     kc.okane@gmail.com
+#+     http://www.cs.uni.edu/~okane
+#+     http://threadsafebooks.com
+#+
+#+ This program is free software; you can redistribute it and/or modify
+#+ it under the terms of the GNU General Public License as published by
+#+ the Free Software Foundation; either version 2 of the License, or
+#+ (at your option) any later version.
+#+
+#+ This program is distributed in the hope that it will be useful,
+#+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#+ GNU General Public License for more details.
+#+
+#+ You should have received a copy of the GNU General Public License
+#+ along with this program; if not, write to the Free Software
+#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+// formatted with astyle --style=banner
+
+/* arith.c - Mumps runtime library
+ *
+ * Arithmetic functions, which take string operands and produce their
+ * result in a string.  Used to implement the majority of math
+ * operations in the Mumps to C translation.
+ */
+
+#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+#include <limits.h>
+
+#include <mumpsc/defines.h>
+#include <mumpsc/fcns.h>
+#include <mumpsc/libmpscpp.h>
+#include <mumpsc/numSetupDefines.h>
+
+using namespace std;
+
+// floatSize will or will not define BIGFLOAT
+
+@floatSize@
+
+// intLong defined next if 32 bit ints wanted
+
+@intLong@
+
+void sigint(int);
+
+#define NO 0
+#define YES 1
+
+#ifdef GCVT
+
+#ifdef BIGFLOAT
+#define gcvt_wrapper(x,a) qgcvt(x, @fp_digits@ , a)
+#else
+#define gcvt_wrapper(x,a) gcvt(x, @fp_digits@ , a)
+#endif
+
+#else
+
+#ifdef BIGFLOAT
+#define gcvt_wrapper(x,a) sprintf(a, "%.@fp_digits@Lg", x)
+#else
+#define gcvt_wrapper(x,a) sprintf(a, "%.@fp_digits@g", x)
+#endif
+
+#endif
+
+void Mltoa(long i, unsigned char * p) {
+
+#define S_SIZE 128
+
+    long j,m,f=0;
+    long x;
+    static char t[]="0123456789";
+    char s[S_SIZE],*p1;
+
+    if (i<0) {
+        f=1;
+        i=-i;
+        if (i<0) {
+            cout << "Integer overflow\n";
+            sigint(100); /* overflow*/
+            }
+        }
+
+    if (i <= LONG_MIN || i >= LONG_MAX ) {
+        cout << "Integer overflow\n";
+        sigint(100); /* overflow*/
+        }
+
+    if (i<10) {
+        if (f) *(p++)='-';
+        *(p++)=t[i];
+        *p='\0';
+        return;
+        }
+
+    s[S_SIZE-1]='\0';
+
+    for (p1=s+S_SIZE-2; p1!=s; p1--) {
+        m=i%10;
+        i=i/10;
+        *p1=t[m];
+        if (!i) break;
+        }
+
+    if (f) *(--p1)='-';
+    strcpy( (char *) p,p1);
+
+    }
+
+/*#+=====================================
+ *#+ log2
+ *#+=====================================*/
+
+void mps_log2(char *a, char *b) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(log2l(strtold(b,NULL)),a);
+#else
+    gcvt_wrapper(log2(strtod(b,NULL)),a);
+#endif
+
+#else
+    static mpfr_t fa,fb,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fb, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fb, b, 10, MPFR_RNDN);
+    mpfr_log2(fa,fb,MPFR_RNDN);
+    mpfr_sprintf(a,"%.@fp_digits@RNg",fa);
+#endif
+    return;
+    }
+
+/*#+=====================================
+ *#+ log10
+ *#+=====================================*/
+
+void mps_log10(char *a, char *b) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(log10l(strtold(b,NULL)),a);
+#else
+    gcvt_wrapper(log10(strtod(b,NULL)),a);
+#endif
+
+#else
+    static mpfr_t fa,fb;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fb, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fb, b, 10, MPFR_RNDN);
+    mpfr_log10(fa,fb,MPFR_RNDN);
+    mpfr_sprintf(a,"%.@fp_digits@RNg",fa);
+#endif
+    return;
+    }
+
+/*#+=====================================
+ *#+ log
+ *#+=====================================*/
+
+void mps_log(char *a, char *b) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(logl(strtold(b,NULL)),a);
+#else
+    gcvt_wrapper(log(strtod(b,NULL)),a);
+#endif
+
+#else
+    static mpfr_t fa,fb;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fb, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fb, b, 10, MPFR_RNDN);
+    mpfr_log(fa,fb,MPFR_RNDN);
+    mpfr_sprintf(a,"%.@fp_digits@RNg",fa);
+#endif
+
+    return;
+    }
+
+/*#+=====================================
+ *#+ cosine
+ *#+=====================================*/
+
+void mps_cos(char *a, char *b) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(cosl(strtold(b,NULL)),a);
+#else
+    gcvt_wrapper(cos(strtod(b,NULL)),a);
+#endif
+
+#else
+    static mpfr_t fa,fb,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fb, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fb, b, 10, MPFR_RNDN);
+    mpfr_cos(fa,fb,MPFR_RNDN);
+    mpfr_sprintf(a,"%.@fp_digits@RNg",fa);
+#endif
+    return;
+    }
+
+/*#+=====================================
+ *#+ sine
+ *#+=====================================*/
+
+void mps_sin(char *a, char *b) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(sinl(strtold(b,NULL)),a);
+#else
+    gcvt_wrapper(sin(strtod(b,NULL)),a);
+#endif
+
+#else
+    static mpfr_t fa,fb,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fb, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fb, b, 10, MPFR_RNDN);
+    mpfr_sin(fa,fb,MPFR_RNDN);
+    mpfr_sprintf(a,"%.@fp_digits@RNg",fa);
+#endif
+    return;
+    }
+
+/*#+=====================================
+ *#+ arc sine
+ *#+=====================================*/
+
+void mps_asin(char *a, char *b) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(asinl(strtold(b,NULL)),a);
+#else
+    gcvt_wrapper(asin(strtod(b,NULL)),a);
+#endif
+
+#else
+    static mpfr_t fa,fb,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fb, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fb, b, 10, MPFR_RNDN);
+    mpfr_asin(fa,fb,MPFR_RNDN);
+    mpfr_sprintf(a,"%.@fp_digits@RNg",fa);
+#endif
+    return;
+    }
+
+/*#+=====================================
+ *#+ arc cosine
+ *#+=====================================*/
+
+void mps_acos(char *a, char *b) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(acosl(strtold(b,NULL)),a);
+#else
+    gcvt_wrapper(acos(strtod(b,NULL)),a);
+#endif
+
+#else
+    static mpfr_t fa,fb,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fb, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fb, b, 10, MPFR_RNDN);
+    mpfr_acos(fa,fb,MPFR_RNDN);
+    mpfr_sprintf(a,"%.@fp_digits@RNg",fa);
+#endif
+
+    return;
+    }
+
+/*#+=====================================
+ *#+ arc tangent
+ *#+=====================================*/
+
+void mps_atan(char *a, char *b) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(atanl(strtold(b,NULL)),a);
+#else
+    gcvt_wrapper(atan(strtod(b,NULL)),a);
+#endif
+
+#else
+    static mpfr_t fa,fb,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fb, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fb, b, 10, MPFR_RNDN);
+    mpfr_atan(fa,fb,MPFR_RNDN);
+    mpfr_sprintf(a,"%.@fp_digits@RNg",fa);
+#endif
+
+    return;
+    }
+
+/*#+=====================================
+ *#+ tangent
+ *#+=====================================*/
+
+void mps_tan(char *a, char *b) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(tanl(strtold(b,NULL)),a);
+#else
+    gcvt_wrapper(tan(strtod(b,NULL)),a);
+#endif
+
+#else
+    static mpfr_t fa,fb,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fb, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fb, b, 10, MPFR_RNDN);
+    mpfr_tan(fa,fb,MPFR_RNDN);
+    mpfr_sprintf(a,"%.@fp_digits@RNg",fa);
+#endif
+
+    return;
+    }
+
+/*#+=====================================
+ *#+ trunc
+ *#+=====================================*/
+
+int mps_trunc(char * out, char * in) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(truncl(strtold(in,NULL)),out);
+    return 0;
+#else
+    gcvt_wrapper(trunc(strtod(in,NULL)),out);
+    return 0;
+#endif
+
+#else
+    if (strchr( (char * ) in,'.') ) {
+        static mpf_t x;
+        static int f=1;
+        if (f) {
+            mpf_init2 (x, FLT_PRECISION);
+            f=0;
+            }
+        gmp_sscanf (in, "%Fg", x);
+        mpf_trunc(x,x);
+        gmp_sprintf(out,"%Fg",x);
+        return 0;
+        }
+
+    strcpy(out,in);
+    return 0;
+#endif
+    }
+
+
+/*#+=====================================
+ *#+ floor
+ *#+=====================================*/
+
+int mps_floor(char * out, char * in) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(floorl(strtold(in,NULL)),out);
+    return 0;
+#else
+    gcvt_wrapper(floor(strtod(in,NULL)),out);
+    return 0;
+#endif
+
+#else
+
+    if (strchr( (char * ) in,'.') ) {
+        static mpf_t x;
+        static int f=1;
+        if (f) {
+            mpf_init2 (x, FLT_PRECISION);
+            f=0;
+            }
+        gmp_sscanf (in, "%Fg", x);
+        mpf_floor(x,x);
+        gmp_sprintf(out,"%Fg",x);
+        for (int i=strlen(out)-1; i>0; i--) {
+            if (out[i]=='0') out[i]=0;
+            else break;
+            }
+        return 0;
+        }
+
+    strcpy(out,in);
+    return 0;
+#endif
+
+    }
+
+/*#+=====================================
+ *#+ ceil
+ *#+=====================================*/
+
+int mps_ceil(char * out, char * in) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(ceill(strtold(in,NULL)),out);
+    return 0;
+#else
+    gcvt_wrapper(ceil(strtod(in,NULL)),out);
+    return 0;
+#endif
+
+#else
+
+    if (strchr( (char * ) in,'.') ) {
+        static mpf_t x;
+        static int f=1;
+        if (f) {
+            mpf_init2 (x, FLT_PRECISION);
+            f=0;
+            }
+        gmp_sscanf (in, "%Fg", x);
+        mpf_ceil(x,x);
+        gmp_sprintf(out,"%Fg",x);
+        return 0;
+        }
+
+    strcpy(out,in);
+    return 0;
+#endif
+    }
+
+/*#+=====================================
+ *#+ sqrt
+ *#+=====================================*/
+
+int mps_sqrt(char * out, char * in) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(sqrtl(strtold(in,NULL)),out);
+    return 0;
+#else
+    gcvt_wrapper(sqrt(strtod(in,NULL)),out);
+    return 0;
+#endif
+
+#else
+
+    static mpf_t x;
+    static int f=1;
+    if (f) {
+        mpf_init2 (x, FLT_PRECISION);
+        f=0;
+        }
+
+    if (numcomp((unsigned char *) in,(unsigned char *) "0")<0) {
+        printf("Square root of a negative number not permitted.\n");
+        GlobalExceptionCode=NUMERIC_RANGE;
+        throw MumpsGlobalException();
+        }
+
+    gmp_sscanf (in, "%Fg", x);
+    mpf_sqrt(x,x);
+    gmp_sprintf(out,"%Fg",x);
+    return 0;
+#endif
+    }
+
+/*#+=====================================
+ *#+ absolute value
+ *#+=====================================*/
+
+int mps_abs(char * in, char * out) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    gcvt_wrapper(fabsl(strtold(in,NULL)),out);
+    return 0;
+#else
+    gcvt_wrapper(fabs(strtod(in,NULL)),out);
+    return 0;
+#endif
+
+#else
+
+    if (strchr( (char * ) in,'.') ) {
+        static mpf_t x;
+        static int f=1;
+        if (f) {
+            mpf_init2 (x, FLT_PRECISION);
+            f=0;
+            }
+        gmp_sscanf (in, "%Fg", x);
+        mpf_abs(x,x);
+        gmp_sprintf(out,"%.Fg",x);
+        return 0;
+        }
+
+    static mpz_t  na;
+    static int f=1;
+    if (f) {
+        mpz_init (na);
+        f=0;
+        }
+    if (gmp_sscanf (in, "%Zd", na ) ==0 ) gmp_sscanf("0","%Zd", na);
+    mpz_abs(na,na);
+    gmp_sprintf(out,"%Zd",na);
+    return 0;
+#endif
+    }
+
+static inline int floatstring(const char * p) {
+
+    int f=0;
+
+    for (; *p!=0; p++) {
+        if (	isdigit(*p) ||
+                *p == '-' ||
+                *p == '+' ) continue;
+        if (	*p=='.' ||
+                tolower(*p)=='e' ) {
+            f=1;
+            continue;
+            }
+        return 0;
+        }
+    return f;
+    }
+
+
+/*#+=====================================
+ *#+ add numeric contents of two strings.
+ *#+=====================================*/
+
+void add(const char *a, const char *b, char *c) {
+
+#define opcode NS_ADD
+
+#include <mumpsc/numSetup.h>
+
+    }
+
+char * add1(char const *a, long b, char *c) {
+    char bb[512];
+    sprintf(bb,"%ld",b);
+    add(a,bb,c);
+    return c;
+    }
+
+void add2(long a, long b, char *c) {
+    char aa[512],bb[512];
+    sprintf(aa,"%ld",a);
+    sprintf(bb,"%ld",b);
+    add(aa,bb,c);
+    return;
+    }
+
+char * add3(const char *a, double b, char *c) {
+    char bb[512];
+    sprintf(bb,"%lf",b);
+    add(a,bb,c);
+    return c;
+    }
+
+/*#+=====================================
+ *#+ sub numeric contents of two strings.
+ *#+=====================================*/
+
+void sub(const char *a, const char *b, char *c) {
+
+#define opcode NS_SUB
+
+#include <mumpsc/numSetup.h>
+
+    }
+
+/*#+=====================================
+ *#+ mult numeric contents of two strings.
+ *#+=====================================*/
+
+void mult(const char *a, const char *b, char *c) {
+
+#define opcode NS_MULT
+
+#include <mumpsc/numSetup.h>
+
+    }
+
+/*#+=====================================
+ *#+ div numeric contents of two strings.
+ *#+=====================================*/
+
+void divx(const char *a, const char *b, char *c) {
+
+#define opcode NS_DIV
+
+#include <mumpsc/numSetup.h>
+
+    }
+
+
+/*#+=====================================
+ *#+ modulo numeric contents of two strings.
+ *#+=====================================*/
+
+void modulo(const char *a, const char *b, char *c) {
+
+// this function is not invoked in bifs.cpp.in
+// it is called by the modulo operator
+
+#ifndef MULTI_PRECISION
+
+    if ( floatstring(a) || floatstring(b) ) {
+
+#ifdef BIGFLOAT
+        gcvt_wrapper(fmodl(strtold(a,NULL),strtold(b,NULL)),c);
+#else
+        gcvt_wrapper(fmod(strtod(a,NULL),strtold(b,NULL)),c);
+#endif
+
+        return;
+        }
+
+    else {
+
+#ifdef intLong
+        long aa=atoi(a);
+        long bb=atoi(b);
+        long cc=aa%bb;
+        sprintf(c,"%d",cc);
+        return;
+        return;
+#else
+        long long aa=atoll(a);
+        long long bb=atoll(b);
+        long long cc=aa%bb;
+        sprintf(c,"%lld",cc);
+        return;
+        return;
+#endif
+        }
+
+#else
+    if ( floatstring(a) || floatstring(b) ) {
+
+        printf("\nModulo permited only on integers.\n");
+        GlobalExceptionCode=NUMERIC_RANGE;
+        throw MumpsGlobalException();
+        }
+
+    static mpz_t  na;
+    static mpz_t  nb;
+    static mpz_t  nc;
+    static mpz_t zero;
+    static int f=1;
+    if (f) {
+        mpz_init (na);
+        mpz_init (nb);
+        mpz_init (nc);
+        mpz_init (zero);
+        f=0;
+        }
+    if (gmp_sscanf (a, "%Zd", na ) ==0 ) gmp_sscanf("0","%Zd", na);
+    if (gmp_sscanf (b, "%Zd", nb ) ==0 ) gmp_sscanf("0","%Zd", nb);
+    if (mpz_cmp(nb,zero)==0) {
+        printf("*** Zero divisor error in modulo\n");
+        GlobalExceptionCode=NUMERIC_RANGE;
+        throw MumpsGlobalException();
+        }
+    mpz_mod(nc,na,nb);
+    gmp_sprintf(c,"%Zd",nc);
+#endif
+    }
+
+/*#+=====================================
+ *#+ integer division
+ *#+=====================================*/
+
+void divi(const char *a, const char *b, char *c) { /* int division */
+
+#define opcode NS_INTDIV // int division
+#include <mumpsc/numSetup.h>
+
+    }
+
+/*#+=====================================
+ *#+ exp functions
+ *#+=====================================*/
+
+/*#+=====================================
+ *#+ exp
+ *#+=====================================*/
+
+void mps_exp(char *c, char *a) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    long double aa=expl(strtold(a,NULL));
+    gcvt_wrapper(aa,c);
+    return;
+#else
+    double aa=exp(strtod(a,NULL));
+    gcvt_wrapper(aa,c);
+    return;
+#endif
+
+#else
+
+    static mpfr_t fa,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fc, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fa, a, 10, MPFR_RNDN);
+    mpfr_exp(fc,fa,MPFR_RNDN);
+    mpfr_sprintf(c,"%.@fp_digits@RNg",fc);
+    return;
+#endif
+    }
+
+/*#+=====================================
+ *#+ exp2
+ *#+=====================================*/
+
+void mps_exp2(char *c, char *a) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    long double aa=exp2l(strtold(a,NULL));
+    gcvt_wrapper(aa,c);
+    return;
+#else
+    double aa=exp2(strtod(a,NULL));
+    gcvt_wrapper(aa,c);
+    return;
+#endif
+
+#else
+
+    static mpfr_t fa,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fc, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fa, a, 10, MPFR_RNDN);
+    mpfr_exp2(fc,fa,MPFR_RNDN);
+    mpfr_sprintf(c,"%.@fp_digits@RNg",fc);
+    return;
+#endif
+    }
+
+/*#+=====================================
+ *#+ exp10
+ *#+=====================================*/
+
+void mps_exp10(char *c, char *a) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    long double aa=exp10l(strtold(a,NULL));
+    gcvt_wrapper(aa,c);
+    return;
+#else
+    double aa=exp10(strtod(a,NULL));
+    gcvt_wrapper(aa,c);
+    return;
+#endif
+
+#else
+
+    static mpfr_t fa,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fa, FLT_PRECISION);
+        mpfr_init2 (fc, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fa, a, 10, MPFR_RNDN);
+    mpfr_exp2(fc,fa,MPFR_RNDN);
+    mpfr_sprintf(c,"%.@fp_digits@RNg",fc);
+    return;
+#endif
+    }
+
+/*#+=====================================
+ *#+ justify
+ *#+=====================================*/
+
+void mps_justify(char *a, char *b, char *c) {
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    long double fc=strtold(c,NULL);
+    sprintf(b,a,fc);
+    return;
+#else
+    double fc=strtod(c,NULL);
+    sprintf(b,a,fc);
+    return;
+#endif
+
+#else
+    static mpfr_t fa,fb,fc;
+    static int f=1;
+    unsigned long power;
+    if (f) {
+        mpfr_init2 (fc, FLT_PRECISION);
+        f=0;
+        }
+    mpfr_set_str (fc, c, 10, MPFR_RNDN);
+    mpfr_sprintf(b,a,fc);
+    return;
+#endif
+    }
+
+/*#+=====================================
+ *#+ exponentiation
+ *#+=====================================*/
+
+/*#+=====================================
+ *#+ power version
+ *#+=====================================*/
+
+void expx(const char *a, const char *b, char *c) {
+
+#ifndef MULTI_PRECISION
+
+#ifdef BIGFLOAT
+    long double fa=strtold(a,NULL);
+    long double fb=strtold(b,NULL);
+    gcvt_wrapper(powl(fa,fb),c);
+    return;
+#else
+    double fa=strtod(a,NULL);
+    double fb=strtod(b,NULL);
+    gcvt_wrapper(pow(fa,fb),c);
+    return;
+#endif
+
+#else
+    if ( floatstring(a) || floatstring(b) ) {
+        static mpfr_t fa,fb,fc;
+        static int f=1;
+        unsigned long power;
+        if (f) {
+            mpfr_init2 (fa, FLT_PRECISION);
+            mpfr_init2 (fb, FLT_PRECISION);
+            mpfr_init2 (fc, FLT_PRECISION);
+            f=0;
+            }
+        mpfr_set_str (fa, a, 10, MPFR_RNDN);
+        mpfr_set_str (fb, b, 10, MPFR_RNDN);
+        mpfr_pow(fc,fa,fb,MPFR_RNDN);
+        mpfr_sprintf(c,"%.@fp_digits@RNg",fc);
+        return;
+        }
+
+    static mpz_t  na;
+    static mpz_t  nb;
+    static mpz_t  nc;
+    unsigned long powr;
+    static int f=1;
+    if (f) {
+        mpz_init (na);
+        mpz_init (nb);
+        mpz_init (nc);
+        f=0;
+        }
+    powr=atoll(b);
+    if (gmp_sscanf (a, "%Zd", na ) ==0 ) gmp_sscanf("0","%Zd", na);
+    if (gmp_sscanf (b, "%Zd", nb ) ==0 ) gmp_sscanf("0","%Zd", nb);
+    mpz_pow_ui(nc,na,powr);
+    gmp_sprintf(c,"%Zd",nc);
+#endif
+    }
+
+/*#+=========================================
+ *#+ compare numeric contents of two strings.
+ *#+=========================================*/
+
+int numcomp(unsigned char *aa, unsigned char *bb) {
+
+#ifndef MULTI_PRECISION
+
+    if ( floatstring((char *) aa) || floatstring((char *) bb) ) {
+
+#ifdef BIGFLOAT
+        long double fa=strtold((char *) aa,NULL);
+        long double fb=strtold((char *) bb,NULL);
+#else
+        double fa=strtod((char *) aa,NULL);
+        double fb=strtod((char *) bb,NULL);
+#endif
+        if (fa==fb) return 0;
+        if (fa>fb) return 1;
+        else return -1;
+        }
+
+    else {
+        @intSize@ fa=atoll((char *)aa);
+        @intSize@ fb=atoll((char *)bb);
+        if (fa==fb) return 0;
+        if (fa>fb) return 1;
+        else return -1;
+        }
+
+#else
+
+    if ( floatstring((char *) aa) || floatstring((char *) bb) ) {
+        static mpf_t fa,fb;
+        static int f=1;
+
+        if (f) {
+            mpf_init2 (fa, FLT_PRECISION);
+            mpf_init2 (fb, FLT_PRECISION);
+            f=0;
+            }
+
+        gmp_sscanf ((char *)aa, "%Fg", fa);
+        gmp_sscanf ((char *)bb, "%Fg", fb);
+        return mpf_cmp(fa,fb);
+        }
+
+    static mpz_t  na;
+    static mpz_t  nb;
+    static int f=1;
+
+    if (f) {
+        mpz_init (na);
+        mpz_init (nb);
+        f=0;
+        }
+
+    if (!aa[0]) gmp_sscanf("0","%Zd", na);
+    else if (gmp_sscanf ((const char *)aa, "%Zd", na ) ==0 ) gmp_sscanf("0","%Zd", na);
+
+    if (!bb[0]) gmp_sscanf("0","%Zd", nb);
+    else if (gmp_sscanf ((const char *)bb, "%Zd", nb ) ==0 ) gmp_sscanf("0","%Zd", nb);
+
+    return mpz_cmp(na,nb);
+#endif
+    }
+
+
+int numcomp1(unsigned char *aa, long bb)
+{
+    if (strchr( (char * ) aa,'.')) {
+      double a = atof ((char *) aa),
+             b =  bb;
+      return a < b ? -1 :
+             a > b ?  1 :
+                      0;
+      }
+
+    return atoll((char *) aa) - bb;
+
+}
+

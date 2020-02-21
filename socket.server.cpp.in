@@ -1,0 +1,210 @@
+/*+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+#+   
+#+     Mumps Bioinformatics Software Library
+#+     Copyright (C) 2003, 2004, 2008, 2012 by Kevin C. O'Kane  
+#+
+#+     Kevin C. O'Kane
+#+     okane@cs.uni.edu
+#+     kc.okane@gmail.com
+#+     http://www.cs.uni.edu/~okane
+#+     http://www.omahadave.com
+#+
+#+     Sockets implementation by Ben Fain
+#+     
+#+ This program is free software; you can redistribute it and/or modify
+#+ it under the terms of the GNU General Public License as published by
+#+ the Free Software Foundation; either version 2 of the License, or
+#+ (at your option) any later version.
+#+ 
+#+ This program is distributed in the hope that it will be useful,
+#+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+#+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#+ GNU General Public License for more details.
+#+ 
+#+ You should have received a copy of the GNU General Public License
+#+ along with this program; if not, write to the Free Software
+#+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <sys/types.h>
+
+#include <mumpsc/libmpscpp.h>
+
+@serverbuf@
+
+
+//structure of message in the queue
+struct mymsgbuf
+{
+  long cid;                 /* Client ID */
+  char buff0[SERVERBUF+1];  /* Buf0 sent from client*/
+  char buff1[SERVERBUF];    /* Buf1 sent from client*/
+  struct socketdata /* Socket Data needed to send data back to client */
+  {
+    int socket;
+    char socketname[108];
+  } socketinfo;
+};
+
+// global A("A");
+
+char * logtime() {
+	time_t t; 
+	static char tm[64];
+	time(&t); 
+	strcpy(tm,ctime(&t)); 
+	tm[strlen(tm)-1]=0;
+	return tm;
+	}
+
+int main(int argc, char * argv[]) {
+
+char buf0[SERVERBUF+1], buf1[SERVERBUF];
+int sigint(int);
+unsigned int Flush=0;
+FILE *Journal;
+char journal[1024];
+int jflag=0;
+int qid,e;
+key_t msgkey;
+int length = sizeof(struct mymsgbuf) - sizeof(long);
+
+
+printf("Server started\n");
+
+for(int i=0; i< argc; i++) {
+	if (strcmp(argv[i],"-j")==0) {
+		if (argc>=i+2) {
+			strcpy(journal,argv[i+i]);
+			jflag=1;
+			}
+		else {
+			printf("incorrectly specified journal\n");
+			return 0;
+			}
+		}
+	}
+
+if (jflag) {
+	Journal=fopen(journal,"a");
+	if (Journal == NULL ) { 
+		printf("Journal error\n"); 
+		}
+	printf("%s journal started...\n",journal);
+	}
+
+//**********************************************************************
+// net initialization goes here $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+//**********************************************************************
+ 
+//generate unique key for message queue using file and arbitrary char
+msgkey = ftok("/tmp/mumps.tmp", 'A');
+
+//create message queue and return queue id
+qid = msgget(msgkey, IPC_CREAT | 0777); 
+//printf("%d",qid);
+
+printf("%s Begin listening....\n",logtime());
+    
+//open socket
+  int ssock = socket(AF_UNIX,SOCK_DGRAM,0);
+  if (ssock < 0){
+    perror("server socket");
+    exit(1);
+  }
+
+while (1) { // repeat as necessary
+
+// detect a shutdown signal and exit this loop to perform GlobalClose
+
+//*********************************************************************
+// read transaction from client here into buf0 and buf1 code goes here
+//*********************************************************************
+  int cid,socket,sck,nbytes,type,result;        
+struct mymsgbuf clientMsg;
+char name[108];
+struct sockaddr_un nm;
+if((result = msgrcv( qid ,(void *) &clientMsg, length, type,  0)) != -1)
+  {
+    cid  = clientMsg.cid;
+    //printf("%s\n","message received");
+    //printf("incoming message buff0 size:%d\n",sizeof(clientMsg.buff0));
+    //printf("incoming message buff1 size:%d\n",sizeof(clientMsg.buff1));
+    //printf("incoming message buff0 contents:%s\n",clientMsg.buff0);
+    //printf("incoming message buff1 contents:%s\n",clientMsg.buff1);
+    memcpy(buf0,clientMsg.buff0,SERVERBUF+1);
+    memcpy(buf1,clientMsg.buff1,SERVERBUF);
+    //printf("buf0 contents after memcpy:%s\n",buf0);
+    //printf("buf1 contents after memcpy:%s\n",buf1);
+    //printf("%s\n","got passed buffer filling");
+    socket = clientMsg.socketinfo.socket;
+    memcpy(name,clientMsg.socketinfo.socketname,sizeof(name));
+    //printf("Socket name after memcpy:%s\n",name);
+    //printf("%s\n","got passed address setting");
+ 
+    
+// --- leave this code alone
+   if (jflag) {
+      if (buf0[0]==STORE) 
+	fprintf(Journal,"%d %s\n%s\n",(int)buf0[0],&buf0[1],buf1);
+      else if (buf0[0]==KILL) 
+	fprintf(Journal,"%d %s\n",(int)buf0[0],&buf0[1]);
+    }
+
+   e=Mglobal((int)buf0[0], (unsigned char *) &buf0[1], (unsigned char *) buf1, svPtr);
+
+   buf0[0]=e;
+
+// --- leave this code alone
+   //printf("%s\n","got passed journal code");
+
+//*********************************************************************
+// send buf0 and buf1 back to client code goes here
+//*********************************************************************
+   memcpy(clientMsg.buff0,buf0,sizeof(buf0));
+   memcpy(clientMsg.buff1,buf1,sizeof(buf1));
+    
+   //printf("%s\n","right before send");
+   //printf("Socket number:%d\n",socket);
+   //printf("Size of received msg:%d\n",sizeof(clientMsg));
+ 
+
+    nm.sun_family = AF_UNIX;
+    strcpy(nm.sun_path,name);
+    //printf("Socket name on server side:%s\n",name);
+
+    
+    if((sendto(ssock,&buf0,SERVERBUF+1,0,(struct sockaddr *)&nm,sizeof(struct sockaddr_un)))<0){
+      perror("Sending Response");
+      exit(EXIT_FAILURE);
+    }
+
+   if((sendto(ssock,&buf1,SERVERBUF,0,(struct sockaddr *)&nm,sizeof(struct sockaddr_un)))<0){
+      perror("Sending Response");
+      exit(EXIT_FAILURE);
+    }
+
+   //printf("%s\n","right after send");
+  }
+ }
+ close(ssock);
+
+GlobalClose;
+
+return 0;
+}
+
