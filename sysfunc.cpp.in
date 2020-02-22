@@ -580,7 +580,7 @@ struct MSV * AllocSV(void) {
     strcat(p1->Connection, " user=");
     strcat(p1->Connection, "@user@");
     strcat(p1->Connection, " password=");
-    strcat(p1->Connection, "@passwd@");
+    strcat(p1->Connection, dbCredentials.getPassword());
     strcat(p1->Connection, "  ");
 #else
     // remote host defaults to 127.0.0.1

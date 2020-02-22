@@ -2264,10 +2264,10 @@ tab_found:  // DB table identified
                 *p2=0;
                 }
 
-            p1=strstr(svPtr->Connection,"passwd=");
+            p1=strstr(svPtr->Connection,"password=");
 
             if (p1 != NULL) {
-                p1=p1+7;
+                p1=p1+9;
                 p2=passwd;
 
                 while( *p1 && *p1 != ' ') *(p2++) = *(p1++);

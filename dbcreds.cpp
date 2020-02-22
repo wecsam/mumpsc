@@ -41,6 +41,18 @@ bool DBCredentials::fail() const {
     return flags;
 }
 
+const char* DBCredentials::getPassword() {
+    if (!gotPassword) {
+        getInput("Enter DB password", true, passwd);
+        if (fail()) {
+            printErrors();
+            return "";
+        }
+        gotPassword = true;
+    }
+    return passwd;
+}
+
 void DBCredentials::printErrors() {
     if (getError(DBCRED_ERROR_DISABLING_ECHO)) {
         cerr << "Terminal echo could not be disabled to hide password input.\n";
@@ -98,7 +110,7 @@ void DBCredentials::getOSUsername(char* buffer) {
     }
 }
 
-DBCredentials::DBCredentials() : flags(0) {}
+DBCredentials::DBCredentials() : flags(0), gotPassword(false) {}
 
 void DBCredentials::setError(DBCredentialsError error) {
     flags |= (1 << error);

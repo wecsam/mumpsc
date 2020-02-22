@@ -41,6 +41,7 @@ public:
     static DBCredentials& getInstance();
     bool getError(DBCredentialsError error) const;
     bool fail() const;
+    const char* getPassword();
 
 protected:
     void printErrors();
@@ -55,6 +56,8 @@ protected:
 
 private:
     unsigned int flags;
+    bool gotPassword;
+    char passwd[DBCRED_MAX_LENGTH];
     DBCredentials();
     DBCredentials(const DBCredentials&);
     void operator=(const DBCredentials&);
