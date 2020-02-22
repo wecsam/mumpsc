@@ -578,7 +578,7 @@ struct MSV * AllocSV(void) {
     strcat(p1->Connection, " dbname=");
     strcat(p1->Connection, "@dbname@");
     strcat(p1->Connection, " user=");
-    strcat(p1->Connection, "@user@");
+    strcat(p1->Connection, dbCredentials.getUser());
     strcat(p1->Connection, " password=");
     strcat(p1->Connection, dbCredentials.getPassword());
     strcat(p1->Connection, "  ");

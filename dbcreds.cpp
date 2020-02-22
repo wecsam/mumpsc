@@ -41,6 +41,24 @@ bool DBCredentials::fail() const {
     return flags;
 }
 
+const char* DBCredentials::getUser() {
+    if (!gotUser) {
+        getOSUsername(user);
+        if (fail()) {
+            printErrors();
+            getInput("Enter DB username", false, user);
+            if (fail()) {
+                printErrors();
+                return "";
+            }
+        } else {
+            cout << "Using DB username: " << user << '\n';
+        }
+        gotUser = true;
+    }
+    return user;
+}
+
 const char* DBCredentials::getPassword() {
     if (!gotPassword) {
         getInput("Enter DB password", true, passwd);
@@ -110,7 +128,7 @@ void DBCredentials::getOSUsername(char* buffer) {
     }
 }
 
-DBCredentials::DBCredentials() : flags(0), gotPassword(false) {}
+DBCredentials::DBCredentials() : flags(0), gotUser(false), gotPassword(false) {}
 
 void DBCredentials::setError(DBCredentialsError error) {
     flags |= (1 << error);
