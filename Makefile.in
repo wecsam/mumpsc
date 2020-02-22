@@ -24,7 +24,7 @@ SRCDIR      = mumpsc
 
 MUMPS2C_OBJS    = mumps.o parse.o sys1.o
 
-LIBMUMPS_OBJS   = arith.o bifs.o bstring.o interp.o pm.o \
+LIBMUMPS_OBJS   = arith.o bifs.o bstring.o interp.o pm.o dbcreds.o \
                   stem.o strmanip.o sym.o sysfunc.o lock.o bmgsubs.o
 
 LIBMPSCPP_OBJS = libmpscpp.o
@@ -42,6 +42,8 @@ BINARIES  = @mumps2c@
 LIBRARIES = libmumps.a libmpsglobal_native.a libmpscpp.a
 
 all: $(BINARIES) $(LIBRARIES)
+
+*.o: $(shell find include/mumpsc -type f -name *.h)
 
 ############################################################################
 #                                  Binaries                                #
@@ -89,6 +91,7 @@ install-common:
 	$(INSTALL) -m 644    include/mumpsc/arith.h $(INCLUDEDIR)/mumpsc/
 	$(INSTALL) -m 644    include/mumpsc/bifs.h $(INCLUDEDIR)/mumpsc/
 	$(INSTALL) -m 644    include/mumpsc/bstring.h $(INCLUDEDIR)/mumpsc/
+	$(INSTALL) -m 644    include/mumpsc/dbcreds.h $(INCLUDEDIR)/mumpsc/
 	$(INSTALL) -m 644    include/mumpsc/btree.h $(INCLUDEDIR)/mumpsc/
 	$(INSTALL) -m 644    include/mumpsc/builtin.h $(INCLUDEDIR)/mumpsc/
 	$(INSTALL) -m 644    include/mumpsc/cgi.h $(INCLUDEDIR)/mumpsc/

@@ -17,8 +17,9 @@ echo "--with-mysql-host=nbr   IP number of remote host [localhost]"
 echo "--with-mysqldb          Enable MySQL data base for globals"
 echo "--with-mysql            Enable MySQL access - globals are native"
 echo "--with-mysql-passwd=val Select mysql user passwd [\"\"]"
-echo "--with-mysql-port=nbr  Select mysql port [\"\"]"
-echo "--with-mysql-socket=nbr Select mysql socket [\'\']"
+echo "--with-mysql-port=nbr   Select mysql port [\"\"]"
+echo "--with-mysql-socket=nbr Select mysql socket [\"\"]"
+echo "--with-db-cred-prompt   Ask user on command line for DB credentials"
 
 echo "--with-pgsql-user=user  posgresql user [mumps]"
 echo "--with-pgsql-passwd=val Select pgsql user passwd [\"\"]"
@@ -205,6 +206,11 @@ AC_ARG_WITH(mysql-socket,
    [ --with-mysql-socket elect mysql socket],
    [ socket="$withval" ],
    [ socket=""])
+
+AC_ARG_WITH(db-cred-prompt,
+   [ --with-db-cred-prompt elect db cred prompt],
+   [ db_cred_prompt="#define DBCREDPROMPT" ],
+   [ db_cred_prompt="" ])
 
 AC_ARG_WITH(datasize, 
    [ --with-datasize datasize for mumps globals],
@@ -547,6 +553,7 @@ AC_SUBST(client)
 AC_SUBST(client_server)
 AC_SUBST(standalone)
 AC_SUBST(client1)
+AC_SUBST(db_cred_prompt)
 AC_SUBST(use_postgres)
 AC_SUBST(use_mysql)
 AC_SUBST(mysql_cflags)

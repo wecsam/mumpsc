@@ -680,6 +680,7 @@ mysql_cppflags
 mysql_cflags
 use_mysql
 use_postgres
+db_cred_prompt
 client1
 standalone
 client_server
@@ -759,6 +760,7 @@ with_mysql_user
 with_mysql_passwd
 with_mysql_port
 with_mysql_socket
+with_db_cred_prompt
 with_datasize
 with_dbname
 with_tablename
@@ -1425,6 +1427,7 @@ Optional Packages:
  --with-mysql-passwd elect mysql passwd
  --with-mysql-port elect mysql port
  --with-mysql-socket elect mysql socket
+ --with-db-cred-prompt elect db cred prompt
  --with-datasize datasize for mumps globals
  --with-dbname dbname for mumps globals
  --with-table table name for mumps globals
@@ -2438,8 +2441,9 @@ echo "--with-mysql-host=nbr   IP number of remote host localhost"
 echo "--with-mysqldb          Enable MySQL data base for globals"
 echo "--with-mysql            Enable MySQL access - globals are native"
 echo "--with-mysql-passwd=val Select mysql user passwd \"\""
-echo "--with-mysql-port=nbr  Select mysql port \"\""
-echo "--with-mysql-socket=nbr Select mysql socket \'\'"
+echo "--with-mysql-port=nbr   Select mysql port \"\""
+echo "--with-mysql-socket=nbr Select mysql socket \"\""
+echo "--with-db-cred-prompt   Ask user on command line for DB credentials"
 
 echo "--with-pgsql-user=user  posgresql user mumps"
 echo "--with-pgsql-passwd=val Select pgsql user passwd \"\""
@@ -4269,6 +4273,15 @@ fi
 
 
 
+# Check whether --with-db-cred-prompt was given.
+if test "${with_db_cred_prompt+set}" = set; then :
+  withval=$with_db_cred_prompt;  db_cred_prompt="#define DBCREDPROMPT"
+else
+   db_cred_prompt=""
+fi
+
+
+
 # Check whether --with-datasize was given.
 if test "${with_datasize+set}" = set; then :
   withval=$with_datasize;  datasize=$withval
@@ -4910,6 +4923,7 @@ echo $user
 
 echo ===============================================
 echo
+
 
 
 

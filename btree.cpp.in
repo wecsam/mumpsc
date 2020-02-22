@@ -2184,6 +2184,7 @@ tab_found:  // DB table identified
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mumpsc/dbcreds.h>
 #include <mumpsc/defines.h>
 #include <mumpsc/btree.h>
 #include <mumpsc/global.h>
@@ -2231,12 +2232,12 @@ tab_found:  // DB table identified
 
         if (!open) {  // default open
 
-            char host[128]="@host@";
-            char user[128]="@user@";
-            char passwd[128]="@passwd@";
-            char dbname[128]="@dbname@";
-            unsigned int port=@port@;
-            char socket[128]="@socket@";
+            char host[DBCRED_MAX_LENGTH] = "";
+            char user[DBCRED_MAX_LENGTH] = "";
+            char passwd[DBCRED_MAX_LENGTH] = "";
+            char dbname[DBCRED_MAX_LENGTH] = "";
+            unsigned int port = 0;
+            char socket[DBCRED_MAX_LENGTH] = "";
             char *p1,*p2;
 
             if (con == NULL) con = mysql_init(NULL);

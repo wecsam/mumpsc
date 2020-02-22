@@ -44,7 +44,9 @@
 using namespace std;
 
 @dbtype@
+@db_cred_prompt@
 
+#include <mumpsc/dbcreds.h>
 #include <mumpsc/defines.h>
 #include <mumpsc/sysparms.h>
 #include <mumpsc/fcns.h>
@@ -570,8 +572,20 @@ struct MSV * AllocSV(void) {
     strcpy(p1->pgsql_msg,"");
     strcpy(p1->Table,"@tablename@");
     p1->TabSize=@tabsize@;
+#ifdef DBCREDPROMPT
+    strcpy(p1->Connection, "host=@remotehost@ ");
+    auto& dbCredentials = DBCredentials::getInstance();
+    strcat(p1->Connection, " dbname=");
+    strcat(p1->Connection, "@dbname@");
+    strcat(p1->Connection, " user=");
+    strcat(p1->Connection, "@user@");
+    strcat(p1->Connection, " password=");
+    strcat(p1->Connection, "@passwd@");
+    strcat(p1->Connection, "  ");
+#else
     // remote host defaults to 127.0.0.1
     strcpy(p1->Connection,"host=@remotehost@ dbname=@dbname@ user=@user@ password=@passwd@  ");
+#endif
     p1->ConOpen=0;
     p1->grsltsx=0;
 
