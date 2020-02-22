@@ -1,4 +1,4 @@
-AC_INIT([mumps.c])
+AC_INIT([mumps.c.in])
 echo
 echo =================================================================
 echo "Mumps Configuration Module Oct 27, 2015"

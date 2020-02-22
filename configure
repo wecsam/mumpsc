@@ -585,7 +585,7 @@ PACKAGE_STRING=
 PACKAGE_BUGREPORT=
 PACKAGE_URL=
 
-ac_unique_file="mumps.c"
+ac_unique_file="mumps.c.in"
 # Factoring default headers for most tests.
 ac_includes_default="\
 #include <stdio.h>
