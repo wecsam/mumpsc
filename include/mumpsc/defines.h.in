@@ -236,4 +236,12 @@
 #define GETENV 18
 #define INPUT 19
 
+@db_cred_prompt@
+#ifdef DBCREDPROMPT
+#include <mumpsc/dbcreds.h>
+#define SQL_DBNAME DBCredentials::getInstance().getDatabase()
+#else
+#define SQL_DBNAME ((char *) "@dbname@")
+#endif
+
 #endif

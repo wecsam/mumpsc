@@ -41,6 +41,16 @@ bool DBCredentials::fail() const {
     return flags;
 }
 
+char* DBCredentials::getDatabase() {
+    if (!gotDatabase) {
+        cout << "Using username as database name.\n";
+        gotDatabase = true;
+    }
+    // Return a non-const copy because sql() wants one.
+    strcpy(dbname, getUser());
+    return dbname;
+}
+
 const char* DBCredentials::getUser() {
     if (!gotUser) {
         getOSUsername(user);
@@ -128,7 +138,8 @@ void DBCredentials::getOSUsername(char* buffer) {
     }
 }
 
-DBCredentials::DBCredentials() : flags(0), gotUser(false), gotPassword(false) {}
+DBCredentials::DBCredentials() :
+    flags(0), gotDatabase(false), gotUser(false), gotPassword(false) {}
 
 void DBCredentials::setError(DBCredentialsError error) {
     flags |= (1 << error);

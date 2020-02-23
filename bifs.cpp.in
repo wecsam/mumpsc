@@ -1900,7 +1900,7 @@ ztabsize:
 // make sure connection is open and TabSize is set
 
 #if defined(MYSQLDB) || defined(POSTGRESSDB)
-    sql(OPEN, svPtr, (char *) "@dbname@", NULL, NULL, NULL);
+    sql(OPEN, svPtr, SQL_DBNAME, NULL, NULL, NULL);
 
     sprintf((char *) bd,"%d",svPtr->TabSize);
 #endif

@@ -1508,8 +1508,8 @@ void global::Transpose(global B) {
 
         if (TransCount>MAX_SQL_TRAN_COUNT) { // periodically commit transactions if PostgreSQL is running
             TransCount=0;
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf2, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf2, "", XTAB);
             }
 
 #endif
@@ -1526,7 +1526,7 @@ void global::Transpose(global B) {
         }
 
 #if defined(POSTGRESSDB) || defined (MYSQLDB)
-//    svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
+//    svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
 #endif
 
     }
@@ -1554,8 +1554,8 @@ void Transpose(char * a, char * b) {
 
         if (TransCount>MAX_SQL_TRAN_COUNT) { // periodically commit transactions if PostgreSQL is running
             TransCount=0;
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf2, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf2, "", XTAB);
             }
 
 #endif
@@ -1570,7 +1570,7 @@ void Transpose(char * a, char * b) {
         }
 
 #if defined(POSTGRESSDB) || defined (MYSQLDB)
-//    svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
+//    svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
 #endif
     }
 
@@ -1598,8 +1598,8 @@ void Transpose(string a, string b) {
 
         if (TransCount>MAX_SQL_TRAN_COUNT) { // periodically commit transactions if PostgreSQL is running
             TransCount=0;
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf2, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf2, "", XTAB);
             }
 
 #endif
@@ -1614,7 +1614,7 @@ void Transpose(string a, string b) {
         }
 
 #if defined(POSTGRESSDB) || defined (MYSQLDB)
-//    svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
+//    svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
 #endif
     }
 
@@ -1641,8 +1641,8 @@ void Transpose(mstring a, mstring b) {
 
         if (TransCount>MAX_SQL_TRAN_COUNT) { // periodically commit transactions if PostgreSQL is running
             TransCount=0;
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf2, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf2, "", XTAB);
             }
 
 #endif
@@ -1657,7 +1657,7 @@ void Transpose(mstring a, mstring b) {
         }
 
 #if defined(POSTGRESSDB) || defined (MYSQLDB)
-//    svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
+//    svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
 #endif
     }
 
@@ -1687,8 +1687,8 @@ void global::Multiply(global B, global C) {
 
         if (TransCount>MAX_SQL_TRAN_COUNT) { // periodically commit transactions if PostgreSQL is running
             TransCount=0;
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf2, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf2, "", XTAB);
             }
 
 #endif
@@ -1722,7 +1722,7 @@ void global::Multiply(global B, global C) {
         }
 
 #if defined(POSTGRESSDB) || defined (MYSQLDB)
-//    svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
+//    svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
 #endif
     }
 
@@ -1749,8 +1749,8 @@ void Multiply(string a, string b, string c) {
 
         if (TransCount>MAX_SQL_TRAN_COUNT) { // periodically commit transactions if PostgreSQL is running
             TransCount=0;
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf2, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf2, "", XTAB);
             }
 
 #endif
@@ -1784,7 +1784,7 @@ void Multiply(string a, string b, string c) {
         }
 
 #if defined(POSTGRESSDB) || defined (MYSQLDB)
-//    svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
+//    svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
 #endif
     }
 
@@ -1811,8 +1811,8 @@ void Multiply(char * a, char * b, char * c) {
 
         if (TransCount>MAX_SQL_TRAN_COUNT) { // periodically commit transactions if PostgreSQL is running
             TransCount=0;
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
-//            svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf2, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
+//            svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf2, "", XTAB);
             }
 
 #endif
@@ -1846,7 +1846,7 @@ void Multiply(char * a, char * b, char * c) {
         }
 
 #if defined(POSTGRESSDB) || defined (MYSQLDB)
-//    svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf1, "", XTAB);
+//    svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf1, "", XTAB);
 #endif
     }
 

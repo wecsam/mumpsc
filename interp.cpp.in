@@ -1364,7 +1364,7 @@ set_return:
 
                     char XTAB[2]= {'\t', 0};
 
-                    svPtr->tpx=sql(0, svPtr, (char *) "@dbname@", buf, filename, XTAB);
+                    svPtr->tpx=sql(0, svPtr, SQL_DBNAME, buf, filename, XTAB);
 
 #endif
                     goto next_line;

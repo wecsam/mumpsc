@@ -576,7 +576,7 @@ struct MSV * AllocSV(void) {
     strcpy(p1->Connection, "host=@remotehost@ ");
     auto& dbCredentials = DBCredentials::getInstance();
     strcat(p1->Connection, " dbname=");
-    strcat(p1->Connection, "@dbname@");
+    strcat(p1->Connection, dbCredentials.getDatabase());
     strcat(p1->Connection, " user=");
     strcat(p1->Connection, dbCredentials.getUser());
     strcat(p1->Connection, " password=");

@@ -1,4 +1,5 @@
 @dbtype@
+@db_cred_prompt@
 
 #define CSTR (char *)
 
@@ -1163,6 +1164,7 @@ void pb(@LONG@ bn, unsigned char * block) {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <mumpsc/dbcreds.h>
 #include <mumpsc/defines.h>
 #include <mumpsc/btree.h>
 #include <mumpsc/global.h>
@@ -1283,7 +1285,7 @@ int btree (int g, unsigned char key[], unsigned char bd[], struct MSV * svPtr) {
 // make sure connection is open
 //-----------------------------
 
-    sql(OPEN, svPtr, (char *) "@dbname@", (char *) key, (char *) bd, XCMD);
+    sql(OPEN, svPtr, SQL_DBNAME, (char *) key, (char *) bd, XCMD);
 
 //-----------------------------
 // get table of database tables
@@ -1339,13 +1341,18 @@ tabBuild:
         tabcount=0;
 
         // get table names
-
-        strcpy(cmd,"show tables from @dbname@;");
+#ifdef DBCREDPROMPT
+        strcpy(cmd, "show tables from ");
+        strcat(cmd, DBCredentials::getInstance().getDatabase());
+        strcat(cmd, ";");
+#else
+        strcpy(cmd, "show tables from @dbname@;");
+#endif
 
         strcpy(cur_file,svPtr->sqloutput); // current output file name saved
         sprintf(svPtr->sqloutput,"%d.tables",getpid());
 
-        j=sql(99, svPtr, (char *) "@dbname@", cmd, (char *) bd, XCMD);
+        j=sql(99, svPtr, SQL_DBNAME, cmd, (char *) bd, XCMD);
 
         if (j==0) {
             tabcount=0;
@@ -1383,7 +1390,7 @@ tabBuild:
                 // get nbr of cols for each table
 
                 sprintf(cmd,"show columns from %s;",tables[i]);
-                sql(99, svPtr, (char *) "@dbname@", cmd, (char *) bd, XCMD);
+                sql(99, svPtr, SQL_DBNAME, cmd, (char *) bd, XCMD);
                 p=fopen(svPtr->sqloutput,"r");
 
                 for (j=0; fgets(tmp,512,p)!=NULL; j++);
@@ -1407,7 +1414,7 @@ tabBuild:
     if (g==NEXT) g=XNEXT;
 
     if (g==SQLCMD) {
-        return sql(GLOBAL, svPtr, (char *) "@dbname@", (char *) key, (char *) bd, XCMD);
+        return sql(GLOBAL, svPtr, SQL_DBNAME, (char *) key, (char *) bd, XCMD);
         }
 
 //-------------------------------------------------------------------------------
@@ -1438,7 +1445,7 @@ tabBuild:
         strcpy(cur_file,svPtr->sqloutput);
         sprintf(svPtr->sqloutput,"%d.tables",getpid());
 
-        int j=sql(99, svPtr, (char *) "@dbname@", cmd, (char *) bd, XCMD);
+        int j=sql(99, svPtr, SQL_DBNAME, cmd, (char *) bd, XCMD);
 
         if (j==0) {
             tabcount=0;
@@ -1611,7 +1618,7 @@ tab_found:  // DB table identified
 
             strcat(cmd," limit 1;");
             bd[0] = 0; // empty string
-            i=sql(GLOBAL, svPtr, (char *) "@dbname@",cmd, (char *) bd, XTAB );
+            i=sql(GLOBAL, svPtr, SQL_DBNAME, cmd, (char *) bd, XTAB );
             strcpy((char *)key,save);
             return i;
             }
@@ -1672,7 +1679,7 @@ tab_found:  // DB table identified
                 else strcat(cmd,"=\'\';");
                 }
 
-            sql(GLOBAL, svPtr, (char *) "@dbname@",cmd, (char *) bd, " "); // delete
+            sql(GLOBAL, svPtr, SQL_DBNAME, cmd, (char *) bd, " "); // delete
 
             strcpy(( char *) key,save);
 
@@ -1726,7 +1733,7 @@ tab_found:  // DB table identified
             *(p3++) = ';';
             *p3 = 0;
 
-            i=sql(GLOBAL, svPtr, (char *) "@dbname@",cmd, (char *) bd, " ");
+            i=sql(GLOBAL, svPtr, SQL_DBNAME, cmd, (char *) bd, " ");
 
             if (i==0) {
                 printf("\n*** SQL error reported during assignment "
@@ -1816,7 +1823,7 @@ tab_found:  // DB table identified
 
             strcpy((char *) key, keybak);
 
-            i=sql(GLOBAL, svPtr, (char *) "@dbname@", cmd, (char *) bd, X01 );
+            i=sql(GLOBAL, svPtr, SQL_DBNAME, cmd, (char *) bd, X01 );
 
             return i;
 
@@ -1871,7 +1878,7 @@ tab_found:  // DB table identified
                 strcat(cmd,";");
                 }
 
-            i=sql(GLOBAL, svPtr, (char *) "@dbname@",cmd, (char *) bd, X01 );
+            i=sql(GLOBAL, svPtr, SQL_DBNAME, cmd, (char *) bd, X01 );
 
             return i;
             }
@@ -1981,7 +1988,7 @@ tab_found:  // DB table identified
                 strcat(cmd," desc limit 1;");
                 }
 
-            i=sql(GLOBAL, svPtr, (char *) "@dbname@",cmd, (char *) bd, XNULL );
+            i=sql(GLOBAL, svPtr, SQL_DBNAME, cmd, (char *) bd, XNULL );
 
             if (i==0) bd[0]=0;
 
@@ -2184,7 +2191,6 @@ tab_found:  // DB table identified
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <mumpsc/dbcreds.h>
 #include <mumpsc/defines.h>
 #include <mumpsc/btree.h>
 #include <mumpsc/global.h>
