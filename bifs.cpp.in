@@ -216,6 +216,8 @@ void zfcn(unsigned char v1d[], unsigned char bd[], struct MSV * svPtr) {
     if (strcasecmp(fcnName,"zshredquery")==0) goto zshredquery; /* $zShredQuery */
     if (strcasecmp(fcnName,"zsrand")==0) goto zsrand; /* $zsrand */
     if (strcasecmp(fcnName,"zsql")==0) goto zsql; /* $zsql */
+    if (strcasecmp(fcnName,"zsqldatasize")==0) goto zsqldatasize; /* $zsqldatasize */
+    if (strcasecmp(fcnName,"zsqlindexsize")==0) goto zsqlindexsize; /* $zsqlindexsize */
     if (strcasecmp(fcnName,"zpostgres")==0) goto zpostgres; /* $zpostgres */
     if (strcasecmp(fcnName,"zmysql")==0) goto zmysql; /* $zmysql */
     if (strcasecmp(fcnName,"znative")==0) goto znative; /* $znative */
@@ -380,6 +382,16 @@ zpostgres: /* $zpostgres */
 zsql:   /* $zsql */
 
     strcpy((char *) bd, svPtr->pgsql_msg);
+    return;
+
+zsqldatasize: /* $zsqldatasize */
+
+    strcpy((char *) bd, "@datasize@");
+    return;
+
+zsqlindexsize: /* $zsqlindexsize */
+
+    strcpy((char *) bd, "@index_size@");
     return;
 
 zsrand: /* $zsrand(seed) */

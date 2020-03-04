@@ -13,7 +13,13 @@ class, I used MySQL as the underlying storage engine.
 I fixed a few minor bugs, but the main addition that I made was the ability to
 prompt the user for the database username and password when using a SQL DB as
 the underlying storage engine instead of the native B-tree implementation. You
-can see this code in [dbcreds.cpp](dbcreds.cpp).
+can see this code in [dbcreds.cpp](dbcreds.cpp). To facilitate bounds checking,
+I added two variables:
+
+- `$zsqldatasize` is the maximum length of a string that can be stored as a
+  value in a MUMPS global.
+- `$zsqlindexsize` is the maximum length of a string that can be used as a
+  subscript with a MUMPS global.
 
 ## Installation
 
