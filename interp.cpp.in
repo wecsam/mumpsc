@@ -1198,6 +1198,9 @@ set_return:
 
 #if defined(POSTGRESSDB) || defined(POSTGRES) || defined(MYSQLDB) || defined(MYSQL)
 
+                    char svPtrTable[256];
+                    int svPtrTabSize;
+
                     svPtr->TabSize=@tabsize@;  // configure option - may be overidden here
 
                     p1=strtok( CSTR &svPtr->pd1[pd1Last+5]," ");
@@ -1238,6 +1241,10 @@ set_return:
 
                     svPtr->tpx=Mglobal (SQLCMD, (unsigned char *)buf, svPtr->bd, svPtr);
 
+                    // These get overwritten someplace below but are needed when we create an index.
+                    strcpy(svPtrTable, svPtr->Table);
+                    svPtrTabSize = svPtr->TabSize;
+
 #if defined(POSTGRESSDB) || defined(MYSQLDB)
 
                     sprintf(buf,"create table %s (a1 varchar(@index_size@) "
@@ -1268,19 +1275,27 @@ set_return:
 
 #endif
 
+                    // Create an index on the subscripts.
+
 #if defined(POSTGRESSDB) || defined(POSTGRES)
 
-                    sprintf(buf,"create index concurrently m1%s on %s (a1, a2);", svPtr->Table, svPtr->Table);
-                    svPtr->tpx=Mglobal (SQLCMD, (unsigned char *)buf, svPtr->bd, svPtr);
+                    sprintf(buf, "create index concurrently idx_%s on %s (a1", svPtrTable, svPtrTable);
 
 #endif
 
 #if defined(MYSQLDB) || defined(MYSQL)
 
-                    sprintf(buf,"create index m1 on %s (a1, a2);", svPtr->Table);
-                    svPtr->tpx=Mglobal (SQLCMD, (unsigned char *)buf, svPtr->bd, svPtr);
+                    sprintf(buf, "create unique index idx_%s on %s(a1", svPtrTable, svPtrTable);
 
 #endif
+
+                    for (i=2; i<svPtrTabSize; i++) {
+                        char x[32];
+                        sprintf(x, ", a%d", i);
+                        strcat(buf, x);
+                        }
+                    strcat(buf, ");");
+                    svPtr->tpx=Mglobal (SQLCMD, (unsigned char *)buf, svPtr->bd, svPtr);
 
 #endif
                     goto next_line;
