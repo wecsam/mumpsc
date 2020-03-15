@@ -1644,6 +1644,8 @@ tab_found:  // DB table identified
                 sigint(100);
                 }
 
+#if defined(POSTGRES) || defined(POSTGRESSDB)
+
             strcpy(save,(const char *) key);
 
 // delete any previous tuple
@@ -1683,6 +1685,7 @@ tab_found:  // DB table identified
 
             strcpy(( char *) key,save);
 
+#endif
 
             p1=strtok( (char *) key,delim);
 
@@ -1725,11 +1728,15 @@ tab_found:  // DB table identified
             p2 = embed((char *)bd);
             *(p3++)='\'';
 
-            while ( *p2 != 0 ) *(p3++) = *(p2++);
+            p3 = stpcpy(p3, p2);
 
             *(p3++) = '\'';
-            *(p3++) = ' ';
             *(p3++) = ')';
+
+#if defined(MYSQL) || defined(MYSQLDB)
+            p3 += sprintf(p3, " on duplicate key update %s='%s'", nums[IMAX], p2);
+#endif
+
             *(p3++) = ';';
             *p3 = 0;
 
