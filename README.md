@@ -10,6 +10,9 @@ for CS-GY 6513 Big Data, taught by Professor Raman Kannan. I tested building on
 an AMD64 platform and in an IBM Cloud environment, which uses PowerPC. For this
 class, I used MySQL as the underlying storage engine.
 
+The IBM Cloud computing facility was 100% underwritten by the IBM Power Systems
+Academic Initiative. Thanks, IBM!
+
 I fixed a few minor bugs, but the main addition that I made was the ability to
 prompt the user for the database username and password when using a SQL DB as
 the underlying storage engine instead of the native B-tree implementation. You
